@@ -115,6 +115,16 @@ export default function Footer() {
             © 2026 NERONOVA. All rights reserved. • High Performance Cyberpunk Architecture
           </div>
         </div>
+
+        {/* Global Developer Credit - Very bottom of footer */}
+        <div className="mt-6 pt-4 border-t border-white/5 text-center">
+          <p className="text-xs sm:text-sm text-gray-400 font-rajdhani tracking-widest uppercase">
+            Website Developed by{' '}
+            <span className="font-orbitron font-bold text-[#FF3030] cyber-glow-red tracking-wider">
+              Swathi
+            </span>
+          </p>
+        </div>
       </div>
     </footer>
   );
