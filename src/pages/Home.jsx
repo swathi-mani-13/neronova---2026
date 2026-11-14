@@ -81,7 +81,7 @@ export default function Home() {
             <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-gray-300 font-mono pt-1">
               <div className="flex items-center space-x-2 bg-black/60 border border-white/10 px-3 py-2 rounded">
                 <Calendar className="w-4 h-4 text-[#FF3030]" />
-                <span>27–28 January 2027 (Tentative)</span>
+                <span>27–28 January 2027</span>
               </div>
               <div className="flex items-center space-x-2 bg-black/60 border border-white/10 px-3 py-2 rounded">
                 <Clock className="w-4 h-4 text-[#FF3030]" />

@@ -62,7 +62,7 @@ export default function Contact() {
                 Hindusthan College of Engineering and Technology
               </h3>
               <p className="text-gray-400 text-xs sm:text-sm leading-relaxed mb-4">
-                Kalaam Auditorium, HICET Campus, Othakkalmandapam, Valley Campus, Coimbatore, Tamil Nadu – 641032
+                HICET, Coimbatore, Tamil Nadu – 641032
               </p>
               <div className="text-xs font-mono text-gray-500 flex items-center space-x-1">
                 <MapPin className="w-3.5 h-3.5 text-[#FF3030]" />

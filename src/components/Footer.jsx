@@ -51,7 +51,7 @@ export default function Footer() {
             <ul className="space-y-3 text-sm text-gray-400">
               <li className="flex items-start space-x-2">
                 <Calendar className="w-4 h-4 text-[#FF3030] shrink-0 mt-0.5" />
-                <span>Last week of January 2027<br /><span className="text-xs text-gray-500">(27 – 28 January 2027)</span></span>
+                <span>27–28 January 2027</span>
               </li>
               <li className="flex items-start space-x-2">
                 <Clock className="w-4 h-4 text-[#FF3030] shrink-0 mt-0.5" />
@@ -59,7 +59,7 @@ export default function Footer() {
               </li>
               <li className="flex items-start space-x-2">
                 <MapPin className="w-4 h-4 text-[#FF3030] shrink-0 mt-0.5" />
-                <span>Kalaam Auditorium,<br />Coimbatore, Tamil Nadu</span>
+                <span>HICET, Coimbatore, Tamil Nadu</span>
               </li>
             </ul>
           </div>

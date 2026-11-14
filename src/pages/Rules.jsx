@@ -33,14 +33,14 @@ export default function Rules() {
         'All development must take place during the official hackathon hours at the venue.',
         'Pre-existing full projects are strictly prohibited. Teams found submitting pre-built repositories will be disqualified.',
         'Use of open-source frameworks (e.g., PyTorch, TensorFlow, React), libraries, pre-trained base models, and public APIs is fully permitted with proper citation.',
-        'Teams must maintain an active Git repository with regular commits during the 36-hour sprint.'
+        'Teams must maintain an active Git repository with regular commits during the hackathon sprint.'
       ]
     },
     {
       category: '3. Hardware & Venue Guidelines',
       icon: ShieldCheck,
       items: [
-        'NERONOVA 2026 is an offline hackathon hosted at Kalaam Auditorium, Coimbatore, Tamil Nadu.',
+        'NERONOVA 2026 is an offline hackathon hosted at HICET, Coimbatore, Tamil Nadu.',
         'Participants must bring their own laptops, chargers, and any specialized hardware (e.g. Arduino, ESP32, Raspberry Pi, camera sensors) required for their project.',
         'High-speed network connectivity, dedicated power outlets, resting zones, and refreshments will be provided throughout the hackathon.',
         'Participants must wear their official ID badges at all times inside the campus premises.'

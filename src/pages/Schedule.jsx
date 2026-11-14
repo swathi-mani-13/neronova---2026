@@ -32,7 +32,7 @@ export default function Schedule() {
     { time: '09:30 AM – 11:30 AM', title: 'Mentorship Checkpoint 2 (Demo Readiness)', desc: 'Technical jury tests working prototypes, UI responsiveness, edge inference speed, and failure handling.', icon: Code },
     { time: '01:00 PM – 02:00 PM', title: 'Networking Lunch', desc: 'Final break before afternoon evaluation and pitching rounds.', icon: Coffee },
     { time: '02:30 PM Sharp', title: 'Code Freeze & Repository Lock', desc: 'All GitHub commits, documentation decks, and video demo submissions locked permanently.', icon: Zap, highlight: true },
-    { time: '03:00 PM – 04:30 PM', title: 'Grand Pitching & Live Jury Demonstrations', desc: 'Shortlisted teams present on the main auditorium stage: 5-minute live demo + 3-minute jury Q&A.', icon: Award },
+    { time: '03:00 PM – 04:30 PM', title: 'Grand Pitching & Live Jury Demonstrations', desc: 'Shortlisted teams present on the main stage: 5-minute live demo + 3-minute jury Q&A.', icon: Award },
     { time: '04:30 PM – 05:30 PM', title: 'Valedictory & Awards Ceremony', desc: 'Keynote summary, jury remarks, domain winners announcement, and certificate distribution.', icon: Flag, highlight: true }
   ];
 
@@ -49,13 +49,13 @@ export default function Schedule() {
         {/* Title */}
         <div className="text-center max-w-3xl mx-auto mb-12 space-y-4">
           <div className="inline-flex items-center space-x-2 border border-[#E50914]/40 bg-[#090909]/80 px-4 py-1.5 rounded-full text-xs font-mono tracking-widest text-[#FF3030]">
-            <span>// 36-HOUR TIMELINE</span>
+            <span>// EVENT TIMELINE</span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-orbitron font-extrabold tracking-tight">
             EVENT <span className="text-[#FF3030] cyber-glow-red">SCHEDULE</span>
           </h1>
           <p className="text-gray-300 text-sm sm:text-base leading-relaxed">
-            Proposed dates: Last week of January 2027 (27 – 28 January 2027, exact dates to be confirmed). High-intensity offline hackathon at Kalaam Auditorium.
+            27–28 January 2027. High-intensity offline hackathon at HICET, Coimbatore, Tamil Nadu.
           </p>
         </div>
 

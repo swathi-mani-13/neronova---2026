@@ -20,11 +20,11 @@ export default function FAQ() {
     },
     {
       q: 'Is NERONOVA 2026 an online or offline event?',
-      a: 'NERONOVA 2026 is strictly an offline 36-hour hackathon hosted on campus at Kalaam Auditorium, Hindusthan College of Engineering and Technology, Coimbatore, Tamil Nadu.'
+      a: 'NERONOVA 2026 is strictly an offline hackathon hosted on campus at HICET, Coimbatore, Tamil Nadu.'
     },
     {
       q: 'When will the hackathon take place?',
-      a: 'The proposed schedule is the last week of January 2027 (specifically 27 – 28 January 2027; exact dates to be finalized and communicated to registered teams).'
+      a: 'NERONOVA 2026 will take place on 27–28 January 2027.'
     },
     {
       q: 'How does team registration work?',

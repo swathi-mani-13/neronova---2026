@@ -89,11 +89,11 @@ export default function About() {
               <div className="space-y-2 pt-2 text-sm text-gray-300 font-mono">
                 <div className="flex items-center space-x-2">
                   <MapPin className="w-4 h-4 text-[#FF3030]" />
-                  <span>Kalaam Auditorium, HICET Campus, Coimbatore, Tamil Nadu – 641032</span>
+                  <span>HICET, Coimbatore, Tamil Nadu</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Calendar className="w-4 h-4 text-[#FF3030]" />
-                  <span>Proposed Dates: Last week of January 2027 (Exact dates to be confirmed)</span>
+                  <span>27–28 January 2027</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Users className="w-4 h-4 text-[#FF3030]" />
@@ -110,7 +110,7 @@ export default function About() {
 
               <div className="space-y-3">
                 {[
-                  { title: 'Offline 36-Hour Hackathon Format', desc: 'On-campus high-energy sprint with uninterrupted connectivity and compute zones.' },
+                  { title: 'Offline Hackathon Format', desc: 'On-campus high-energy sprint with uninterrupted connectivity and compute zones.' },
                   { title: 'Continuous Technical Mentorship', desc: 'Domain veterans and senior AI architects available for 1-on-1 code reviews and architectural guidance.' },
                   { title: 'Equal Opportunity Tracks', desc: 'Separate recognition and fair evaluation tracks for Inter-College and Intra-College contingents.' },
                   { title: 'Strict Intellectual Property Protection', desc: 'Participating teams retain 100% ownership and copyright of their intellectual property.' }
