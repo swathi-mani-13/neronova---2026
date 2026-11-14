@@ -8,8 +8,11 @@ import {
   CheckCircle, 
   Building2, 
   Users, 
-  GraduationCap 
+  GraduationCap,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
+import { submitEnquiry } from '../lib/supabase';
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -20,10 +23,26 @@ export default function Contact() {
     message: ''
   });
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitted(true);
+    setErrorMsg('');
+    setIsSubmitting(true);
+
+    try {
+      const res = await submitEnquiry(formData);
+      if (res.success) {
+        setSubmitted(true);
+      } else {
+        setErrorMsg(res.error || 'Failed to submit enquiry. Please verify database connection.');
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Transmission failed.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -147,6 +166,13 @@ export default function Contact() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {errorMsg && (
+                    <div className="p-3.5 bg-[#140003] border border-[#E50914] rounded-lg text-xs text-[#FF3030] flex items-start space-x-2 animate-fadeIn">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span className="font-mono">{errorMsg}</span>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-orbitron font-semibold text-gray-300 uppercase mb-1.5">
@@ -224,10 +250,20 @@ export default function Contact() {
 
                   <button
                     type="submit"
-                    className="w-full py-3.5 bg-gradient-to-r from-[#E50914] to-[#FF3030] text-white font-orbitron font-bold text-sm uppercase rounded cyber-chamfer-btn shadow-neon-red hover:shadow-neon-red-lg transition-all flex items-center justify-center space-x-2"
+                    disabled={isSubmitting}
+                    className="w-full py-3.5 bg-gradient-to-r from-[#E50914] to-[#FF3030] disabled:opacity-50 disabled:cursor-not-allowed text-white font-orbitron font-bold text-sm uppercase rounded cyber-chamfer-btn shadow-neon-red hover:shadow-neon-red-lg transition-all flex items-center justify-center space-x-2"
                   >
-                    <Send className="w-4 h-4" />
-                    <span>Transmit Enquiry</span>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Transmitting to Database...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        <span>Transmit Enquiry</span>
+                      </>
+                    )}
                   </button>
                 </form>
               )}

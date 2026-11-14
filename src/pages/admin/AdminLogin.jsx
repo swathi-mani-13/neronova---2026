@@ -7,8 +7,8 @@ export default function AdminLogin() {
   const { login, currentUser } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('admin@neronova.com');
-  const [password, setPassword] = useState('admin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState(ADMIN_ROLES.MAIN_ADMIN);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,7 +25,7 @@ export default function AdminLogin() {
     setError('');
     setLoading(true);
 
-    const res = await login(email, password, selectedRole);
+    const res = await login(email, password);
     setLoading(false);
 
     if (res.success) {
@@ -37,8 +37,9 @@ export default function AdminLogin() {
 
   const handleRoleSelect = (role, demoEmail) => {
     setSelectedRole(role);
-    setEmail(demoEmail);
-    setPassword('admin');
+    if (!email) {
+      setEmail(demoEmail);
+    }
   };
 
   return (
