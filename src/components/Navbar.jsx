@@ -27,44 +27,47 @@ export default function Navbar() {
       {/* Top accent cyber line */}
       <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-[#E50914] to-[#FF3030]"></div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           
-          {/* Left: NERONOVA 2026 Branding + College Logo Space */}
-          <div className="flex items-center space-x-4">
-            <Link to="/" className="flex items-center space-x-3 group">
-              {/* Glowing N Logo */}
-              <div className="w-10 h-10 relative flex items-center justify-center">
+          {/* Left: NERONOVA 2026 Branding + College Logo */}
+          <div className="flex items-center space-x-1 sm:space-x-3.5 min-w-0">
+            <Link to="/" className="flex items-center space-x-1 sm:space-x-2.5 group min-w-0">
+              {/* 1. NERONOVA 2026 Official Event Logo */}
+              <div className="h-7 sm:h-10 md:h-12 flex items-center justify-center shrink-0">
                 <img 
-                  src="/logo.svg" 
-                  alt="NERONOVA" 
-                  className="w-full h-full filter drop-shadow-[0_0_8px_rgba(229,9,20,0.7)] group-hover:drop-shadow-[0_0_15px_rgba(255,48,48,0.9)] transition-all duration-300 transform group-hover:scale-105" 
+                  src="/neronova-logo.png" 
+                  alt="NERONOVA 2026 Official Logo" 
+                  className="h-full w-auto object-contain filter drop-shadow-[0_0_8px_rgba(229,9,20,0.7)] group-hover:drop-shadow-[0_0_15px_rgba(255,48,48,0.9)] transition-all duration-300 transform group-hover:scale-105" 
                 />
               </div>
 
-              {/* Title & Badge */}
-              <div className="flex flex-col">
-                <div className="flex items-center space-x-1.5">
-                  <span className="font-orbitron font-black text-xl md:text-2xl tracking-widest text-white group-hover:text-[#FF3030] transition-colors">
+              {/* 2. NERONOVA 2026 Title & Tagline Branding */}
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center space-x-1 sm:space-x-1.5 leading-tight">
+                  <span className="font-orbitron font-black text-xs sm:text-xl md:text-2xl tracking-wider sm:tracking-widest text-white group-hover:text-[#FF3030] transition-colors whitespace-nowrap">
                     NERONOVA
                   </span>
-                  <span className="font-orbitron font-bold text-lg md:text-xl text-[#E50914] cyber-glow-red">
+                  <span className="font-orbitron font-bold text-[11px] sm:text-lg md:text-xl text-[#E50914] cyber-glow-red whitespace-nowrap">
                     2026
                   </span>
                 </div>
-                <span className="text-[9px] tracking-[0.25em] text-gray-400 uppercase font-mono">
+                <span className="hidden sm:block text-[8px] sm:text-[9px] tracking-[0.2em] sm:tracking-[0.25em] text-gray-400 uppercase font-mono leading-none mt-0.5 whitespace-nowrap">
                   INNOVATE • CODE • TRANSFORM
                 </span>
               </div>
             </Link>
 
-            {/* Designated College Logo Space (Empty reserved slot as specified) */}
+            {/* 3. HICET College Official Logo */}
             <div 
-              className="hidden xl:flex items-center justify-center border border-dashed border-red-500/20 hover:border-red-500/40 rounded px-2.5 py-1 bg-black/40 text-[10px] text-gray-500 font-mono tracking-wider transition-colors"
-              title="Reserved Space for College Logo"
+              className="flex items-center justify-center h-6 sm:h-9 md:h-10 px-1 py-0.5 bg-white rounded border border-[#E50914]/40 shadow-sm shrink-0"
+              title="HICET - Hindusthan College of Engineering and Technology"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500/50 mr-1.5 animate-pulse"></span>
-              COLLEGE LOGO SPACE
+              <img 
+                src="/hicet-logo.jpg" 
+                alt="HICET College Official Logo" 
+                className="h-full w-auto object-contain" 
+              />
             </div>
           </div>
 
@@ -104,10 +107,10 @@ export default function Navbar() {
           </div>
 
           {/* Mobile menu toggle */}
-          <div className="flex md:hidden items-center space-x-3">
+          <div className="flex md:hidden items-center space-x-2 shrink-0">
             <Link
               to="/register"
-              className="px-3 py-1.5 text-xs font-orbitron font-bold text-white bg-[#E50914] rounded shadow-neon-red"
+              className="hidden sm:inline-flex px-3 py-1.5 text-xs font-orbitron font-bold text-white bg-[#E50914] rounded shadow-neon-red"
             >
               Register
             </Link>
