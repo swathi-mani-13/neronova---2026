@@ -63,12 +63,6 @@ export default function Home() {
           {/* Left Column (Hero Content & Controls) - 7 cols */}
           <div className="lg:col-span-7 space-y-6 z-10">
             
-            {/* Approved Header Badge / Subtitle: Note: Do not display 'AI-Based Software Hackathon' */}
-            <div className="inline-flex items-center space-x-2 border border-[#E50914]/40 bg-[#090909]/80 px-4 py-1.5 rounded-full text-xs font-mono tracking-widest text-gray-300 backdrop-blur-sm shadow-[0_0_12px_rgba(229,9,20,0.3)]">
-              <span className="w-2 h-2 rounded-full bg-[#FF3030] animate-ping"></span>
-              <span className="text-white font-semibold">A Two-Day Intra & Inter College AI/ML Hackathon</span>
-            </div>
-
             {/* Giant Glowing Title: NERONOVA 2026 */}
             <div className="space-y-1">
               <h1 className="text-5xl sm:text-6xl md:text-7xl font-orbitron font-black tracking-tight text-white leading-none">
@@ -84,19 +78,18 @@ export default function Home() {
             </div>
 
             {/* Event Key Coordinates Row (Date, Time, Location) */}
-            {/* Note: Hindusthan College name is not displayed on Homepage as per instructions */}
             <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-gray-300 font-mono pt-1">
               <div className="flex items-center space-x-2 bg-black/60 border border-white/10 px-3 py-2 rounded">
                 <Calendar className="w-4 h-4 text-[#FF3030]" />
-                <span>27 – 28 January 2027</span>
+                <span>27–28 January 2027 (Tentative)</span>
               </div>
               <div className="flex items-center space-x-2 bg-black/60 border border-white/10 px-3 py-2 rounded">
                 <Clock className="w-4 h-4 text-[#FF3030]" />
-                <span>9:30 AM – 4:30 PM</span>
+                <span>9:30 AM – 4:30 PM (Offline Mode)</span>
               </div>
               <div className="flex items-center space-x-2 bg-black/60 border border-white/10 px-3 py-2 rounded">
                 <MapPin className="w-4 h-4 text-[#FF3030]" />
-                <span>Kalaam Auditorium, Coimbatore</span>
+                <span>HICET, Coimbatore, Tamil Nadu</span>
               </div>
             </div>
 
@@ -148,16 +141,11 @@ export default function Home() {
                 </Link>
               </div>
 
-              {/* Sub-row matching reference: 250+ Participants | Offline Hackathon */}
+              {/* Event Highlights: 250+ Participants | 2–4 Members / Team */}
               <div className="flex items-center space-x-6 text-xs sm:text-sm text-gray-400 font-mono pt-1">
                 <div className="flex items-center space-x-2">
                   <Users className="w-4 h-4 text-[#FF3030]" />
                   <span className="text-white font-medium">250+ Participants</span>
-                </div>
-                <span className="text-gray-700">|</span>
-                <div className="flex items-center space-x-2">
-                  <Activity className="w-4 h-4 text-[#FF3030]" />
-                  <span className="text-white font-medium">Offline 36h Sprint</span>
                 </div>
                 <span className="text-gray-700">|</span>
                 <div className="flex items-center space-x-2">
@@ -189,10 +177,6 @@ export default function Home() {
                 <div className="absolute top-3 left-3 flex items-center space-x-2 bg-black/75 border border-[#E50914]/60 px-2.5 py-1 rounded text-[10px] font-mono text-[#FF3030] backdrop-blur-md">
                   <span className="w-2 h-2 rounded-full bg-[#FF3030] animate-ping"></span>
                   <span>AI CORE ONLINE</span>
-                </div>
-
-                <div className="absolute bottom-3 right-3 flex items-center space-x-2 bg-black/85 border border-[#00d2ff]/60 px-2.5 py-1 rounded text-[10px] font-mono text-[#00d2ff] backdrop-blur-md shadow-evileye">
-                  <span>EVIL EYE SURVEILLANCE</span>
                 </div>
               </div>
 
@@ -303,3 +287,4 @@ export default function Home() {
     </div>
   );
 }
+
