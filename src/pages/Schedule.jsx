@@ -18,22 +18,21 @@ export default function Schedule() {
   const [activeDay, setActiveDay] = useState('day1');
 
   const day1Schedule = [
-    { time: '08:30 AM – 09:30 AM', title: 'On-Campus Registration & Kit Distribution', desc: 'Badge collection, table allocation, Wi-Fi onboarding, and system environment verification.', icon: Users },
-    { time: '09:30 AM – 10:30 AM', title: 'Grand Inauguration Ceremony', desc: 'Opening keynote from AI industry leaders, address by faculty coordinators, and problem statement briefing.', icon: Flag },
-    { time: '10:30 AM Sharp', title: 'Hackathon Commences (Clock Starts)', desc: 'Official hacking begins across all 9 domains. Architecture planning, repository setup, and data ingestion.', icon: Zap, highlight: true },
-    { time: '01:00 PM – 02:00 PM', title: 'Networking Lunch', desc: 'Catered lunch at campus dining hall. Informal peer interaction and domain exploration.', icon: Coffee },
-    { time: '03:30 PM – 05:30 PM', title: 'Mentorship Checkpoint 1 (Architecture Review)', desc: 'Senior industry mentors visit every team table to evaluate system design, model feasibility, and edge constraints.', icon: Code },
-    { time: '07:30 PM – 08:30 PM', title: 'Dinner & Recharge', desc: 'High-energy dinner, technical booths, and mentor lightning talks.', icon: Coffee },
-    { time: '11:30 PM – 01:00 AM', title: 'Midnight Review & Code Sprint', desc: 'Midnight progress check, snack bar, and rapid overnight prototyping run.', icon: Zap }
+    { time: '9:30 AM – 10:00 AM', title: 'On-Campus Registration & Kit Distribution', desc: 'Badge collection, table allocation, Wi-Fi onboarding, and system environment verification.', icon: Users },
+    { time: '10:00 AM – 10:30 AM', title: 'Grand Inauguration Ceremony', desc: 'Opening keynote, faculty coordinator address, and problem statement briefing.', icon: Flag },
+    { time: '10:30 AM – 12:30 PM', title: 'Hackathon Commences', desc: 'Official development begins across all 9 domains. Architecture planning, repository setup, and data ingestion.', icon: Zap, highlight: true },
+    { time: '12:30 PM – 1:30 PM', title: 'Networking Lunch', desc: 'Catered lunch at campus dining hall. Informal peer interaction and domain exploration.', icon: Coffee },
+    { time: '1:30 PM – 3:30 PM', title: 'Mentorship Checkpoint 1 (Architecture Review)', desc: 'Mentors review system design, model feasibility, and implementation plans.', icon: Code },
+    { time: '3:30 PM – 4:30 PM', title: 'Development & Progress Review', desc: 'Teams continue development and review their progress.', icon: Zap }
   ];
 
   const day2Schedule = [
-    { time: '07:30 AM – 08:30 AM', title: 'Breakfast & Morning Standup', desc: 'Fresh South Indian breakfast and morning sync to align final deployment deliverables.', icon: Coffee },
-    { time: '09:30 AM – 11:30 AM', title: 'Mentorship Checkpoint 2 (Demo Readiness)', desc: 'Technical jury tests working prototypes, UI responsiveness, edge inference speed, and failure handling.', icon: Code },
-    { time: '01:00 PM – 02:00 PM', title: 'Networking Lunch', desc: 'Final break before afternoon evaluation and pitching rounds.', icon: Coffee },
-    { time: '02:30 PM Sharp', title: 'Code Freeze & Repository Lock', desc: 'All GitHub commits, documentation decks, and video demo submissions locked permanently.', icon: Zap, highlight: true },
-    { time: '03:00 PM – 04:30 PM', title: 'Grand Pitching & Live Jury Demonstrations', desc: 'Shortlisted teams present on the main stage: 5-minute live demo + 3-minute jury Q&A.', icon: Award },
-    { time: '04:30 PM – 05:30 PM', title: 'Valedictory & Awards Ceremony', desc: 'Keynote summary, jury remarks, domain winners announcement, and certificate distribution.', icon: Flag, highlight: true }
+    { time: '9:30 AM – 11:00 AM', title: 'Mentorship Checkpoint 2 (Demo Readiness)', desc: 'Technical jury reviews working prototypes, UI responsiveness, and implementation progress.', icon: Code },
+    { time: '11:00 AM – 12:30 PM', title: 'Final Development & Prototype Testing', desc: 'Teams complete their implementations and prepare demonstrations.', icon: Zap },
+    { time: '12:30 PM – 1:30 PM', title: 'Networking Lunch', desc: 'Midday networking lunch and final preparation for code freeze.', icon: Coffee },
+    { time: '1:30 PM – 2:00 PM', title: 'Code Freeze & Repository Submission', desc: 'Final GitHub commits, documentation, and demo materials are submitted.', icon: Zap, highlight: true },
+    { time: '2:00 PM – 3:30 PM', title: 'Grand Pitching & Live Jury Demonstrations', desc: 'Shortlisted teams present a 5-minute demo followed by 3-minute jury Q&A.', icon: Award },
+    { time: '3:30 PM – 4:30 PM', title: 'Valedictory & Awards Ceremony', desc: 'Jury remarks, winners announcement, and certificate distribution.', icon: Flag, highlight: true }
   ];
 
   const currentSchedule = activeDay === 'day1' ? day1Schedule : day2Schedule;
@@ -55,7 +54,7 @@ export default function Schedule() {
             EVENT <span className="text-[#FF3030] cyber-glow-red">SCHEDULE</span>
           </h1>
           <p className="text-gray-300 text-sm sm:text-base leading-relaxed">
-            27–28 January 2027. High-intensity offline hackathon at HICET, Coimbatore, Tamil Nadu.
+            27–28 January 2027 • 9:30 AM – 4:30 PM (Offline Mode) • HICET, Coimbatore, Tamil Nadu
           </p>
         </div>
 
