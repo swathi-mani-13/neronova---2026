@@ -28,10 +28,21 @@ export function generateRegistrationId() {
   return `NERO-2026-${randomNum}`;
 }
 
-// Check duplicates directly against live database
+// Generate client-side UUID v4 safe across all environments
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+// Check duplicates securely via database RPC without exposing participant records
 export async function checkDuplicates({ email, phone, teamName }) {
   if (!isSupabaseConfigured) {
-    // If database is not configured, warn the user rather than claiming success
     return { 
       duplicate: false, 
       warning: 'Database unconfigured. Real-time duplicate verification requires active Supabase connection.' 
@@ -39,66 +50,29 @@ export async function checkDuplicates({ email, phone, teamName }) {
   }
 
   try {
-    // 1. Check Team Name
-    const { data: teamMatches, error: teamErr } = await supabase
-      .from('teams')
-      .select('id, team_name')
-      .ilike('team_name', teamName.trim());
-
-    if (teamErr) throw teamErr;
-
-    if (teamMatches && teamMatches.length > 0) {
-      return { 
-        duplicate: true, 
-        field: 'team_name', 
-        message: `Team Name "${teamName.trim()}" is already registered. Please choose a unique team name.` 
-      };
-    }
-
-    // 2. Check Member Email
-    const { data: emailMatches, error: emailErr } = await supabase
-      .from('team_members')
-      .select('id, email')
-      .ilike('email', email.trim());
-
-    if (emailErr) throw emailErr;
-
-    if (emailMatches && emailMatches.length > 0) {
-      return { 
-        duplicate: true, 
-        field: 'email', 
-        message: `Email address "${email.trim()}" is already registered with an existing team.` 
-      };
-    }
-
-    // 3. Check Member Phone
     const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const { data: phoneMatches, error: phoneErr } = await supabase
-      .from('team_members')
-      .select('id, phone')
-      .eq('phone', cleanPhone);
 
-    if (phoneErr) throw phoneErr;
+    // Call secure PostgreSQL RPC to check duplicates without reading participant tables
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('check_registration_duplicates', {
+      p_team_name: teamName.trim(),
+      p_email: email.trim(),
+      p_phone: cleanPhone
+    });
 
-    if (phoneMatches && phoneMatches.length > 0) {
-      return { 
-        duplicate: true, 
-        field: 'phone', 
-        message: `Phone number "${cleanPhone}" is already registered with an existing team.` 
-      };
+    if (!rpcErr && rpcData) {
+      return rpcData;
     }
 
+    // Fallback: If RPC is not available yet, return false and let database unique constraints validate
     return { duplicate: false };
   } catch (err) {
-    console.error('Supabase duplicate check query failed:', err);
-    return {
-      duplicate: false,
-      error: `Database check error: ${err.message}`
-    };
+    console.warn('Duplicate check call exception:', err);
+    return { duplicate: false };
   }
 }
 
-// Register Team & Members in a strict transactional flow into Supabase
+// Register Team & Members in Supabase
+// Uses client-generated teamId to avoid needing public SELECT permissions on teams/members
 export async function registerTeam(teamData, membersData) {
   if (!isSupabaseConfigured) {
     return {
@@ -108,12 +82,14 @@ export async function registerTeam(teamData, membersData) {
   }
 
   const regId = generateRegistrationId();
+  const teamId = generateUUID();
 
   try {
-    // 1. Insert Team
-    const { data: insertedTeam, error: teamErr } = await supabase
+    // 1. Insert Team (No select needed, client knows teamId upfront)
+    const { error: teamErr } = await supabase
       .from('teams')
       .insert([{
+        id: teamId,
         registration_id: regId,
         team_name: teamData.team_name.trim(),
         college_type: teamData.college_type,
@@ -123,12 +99,16 @@ export async function registerTeam(teamData, membersData) {
         is_paid: false,
         payment_reference: '',
         status: 'Registered'
-      }])
-      .select()
-      .single();
+      }]);
 
     if (teamErr) {
       console.error('Supabase team insertion error:', teamErr);
+      if (teamErr.code === '23505' || teamErr.message?.includes('unique')) {
+        return {
+          success: false,
+          error: `Registration conflict: Team name "${teamData.team_name.trim()}" is already registered. Please choose another name.`
+        };
+      }
       return {
         success: false,
         error: `Database error during team registration: ${teamErr.message}`
@@ -137,7 +117,8 @@ export async function registerTeam(teamData, membersData) {
 
     // 2. Insert Team Members
     const membersToInsert = membersData.map((m, index) => ({
-      team_id: insertedTeam.id,
+      id: generateUUID(),
+      team_id: teamId,
       is_leader: index === 0,
       name: m.name.trim(),
       email: m.email.trim(),
@@ -153,8 +134,12 @@ export async function registerTeam(teamData, membersData) {
 
     if (membersErr) {
       console.error('Supabase members insertion error:', membersErr);
-      // Clean up orphaned team record to maintain database consistency
-      await supabase.from('teams').delete().eq('id', insertedTeam.id);
+      if (membersErr.code === '23505' || membersErr.message?.includes('unique')) {
+        return {
+          success: false,
+          error: 'Registration conflict: One of the participant emails or phone numbers is already registered with another team.'
+        };
+      }
       return {
         success: false,
         error: `Database error during team members registration: ${membersErr.message}`
@@ -164,7 +149,7 @@ export async function registerTeam(teamData, membersData) {
     return {
       success: true,
       registration_id: regId,
-      team_id: insertedTeam.id
+      team_id: teamId
     };
   } catch (err) {
     console.error('Unexpected error during registration:', err);
@@ -188,6 +173,7 @@ export async function submitEnquiry(enquiryData) {
     const { error } = await supabase
       .from('enquiries')
       .insert([{
+        id: generateUUID(),
         name: enquiryData.name.trim(),
         email: enquiryData.email.trim(),
         phone: enquiryData.phone.trim(),
@@ -214,7 +200,7 @@ export async function submitEnquiry(enquiryData) {
   }
 }
 
-// Fetch all registered teams with member data directly from Supabase
+// Fetch all registered teams with member data (Authenticated Admin Only)
 export async function fetchAllTeams() {
   if (!isSupabaseConfigured) {
     return [];
@@ -241,7 +227,7 @@ export async function fetchAllTeams() {
   }
 }
 
-// Compute live real statistics directly from database records
+// Compute live real statistics directly from database records (Admin Only)
 export async function getRealDatabaseStatistics() {
   const teams = await fetchAllTeams();
   
@@ -295,7 +281,7 @@ export async function getRealDatabaseStatistics() {
   };
 }
 
-// Update payment status in Supabase
+// Update payment status in Supabase (Admin Only)
 export async function updatePaymentStatus(teamId, isPaid, paymentRef = '') {
   if (!isSupabaseConfigured) {
     return { success: false, error: 'Database is not connected.' };
@@ -319,7 +305,7 @@ export async function updatePaymentStatus(teamId, isPaid, paymentRef = '') {
   }
 }
 
-// Update review/verification status in Supabase
+// Update review/verification status in Supabase (Admin Only)
 export async function updateTeamStatus(teamId, newStatus) {
   if (!isSupabaseConfigured) {
     return { success: false, error: 'Database is not connected.' };
