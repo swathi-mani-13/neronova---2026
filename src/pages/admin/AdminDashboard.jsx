@@ -23,7 +23,8 @@ import {
   BarChart3,
   Award,
   Layers,
-  AlertTriangle
+  AlertTriangle,
+  FileText
 } from 'lucide-react';
 import { useAuth, ADMIN_ROLES } from '../../lib/auth';
 import { 
@@ -31,6 +32,7 @@ import {
   updatePaymentStatus, 
   updateTeamStatus, 
   deleteTeam, 
+  getDocumentSignedUrl,
   isSupabaseConfigured 
 } from '../../lib/supabase';
 import { DOMAIN_LIST } from '../Domains';
@@ -50,6 +52,10 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [activeTab, setActiveTab] = useState('teams'); // 'teams' | 'analytics'
   const [actionSuccess, setActionSuccess] = useState('');
+
+  // Document Verification Preview State
+  const [documentModal, setDocumentModal] = useState(null); // { title: string, url: string, loading: boolean, error: string }
+  const [loadingDocType, setLoadingDocType] = useState(null); // 'Student ID Card' | 'Payment Screenshot' | null
 
   // Authentication check
   useEffect(() => {
@@ -137,14 +143,39 @@ export default function AdminDashboard() {
     }
   };
 
+  // Action: Securely View Verification Document via Signed URL
+  const handleViewDocument = async (filePath, title) => {
+    if (!filePath) {
+      alert(`No ${title} record found for this team.`);
+      return;
+    }
+
+    setLoadingDocType(title);
+    setDocumentModal({ title, url: null, loading: true, error: null });
+
+    const res = await getDocumentSignedUrl(filePath, 300); // 5 minutes valid token
+    setLoadingDocType(null);
+
+    if (res.success && res.signedUrl) {
+      setDocumentModal({ title, url: res.signedUrl, loading: false, error: null });
+    } else {
+      setDocumentModal({ 
+        title, 
+        url: null, 
+        loading: false, 
+        error: res.error || 'Failed to generate signed document URL. Please check session credentials.' 
+      });
+    }
+  };
+
   // Action: Delete Team (Main Admin only)
-  const handleDeleteTeam = async (teamId, teamName) => {
+  const handleDeleteTeam = async (teamId, teamName, documentPaths = []) => {
     if (!isMainAdmin) {
       alert('Only Main Admin has permission to delete registration records.');
       return;
     }
     if (window.confirm(`Are you sure you want to permanently delete team "${teamName}"? This action cannot be undone.`)) {
-      const res = await deleteTeam(teamId);
+      const res = await deleteTeam(teamId, documentPaths);
       if (res.success) {
         setActionSuccess(`Team "${teamName}" permanently deleted from database.`);
         setTimeout(() => setActionSuccess(''), 3000);
@@ -528,7 +559,7 @@ export default function AdminDashboard() {
 
                             {/* Payment Toggle */}
                             <td className="px-4 py-3">
-                              {(isMainAdmin || isOrganizing) ? (
+                              {isMainAdmin ? (
                                 <button
                                   onClick={() => handleTogglePayment(team.id, team.is_paid)}
                                   className={`px-2.5 py-1 rounded text-[10px] font-orbitron font-bold uppercase transition-all ${
@@ -568,7 +599,7 @@ export default function AdminDashboard() {
 
                               {isMainAdmin && (
                                 <button
-                                  onClick={() => handleDeleteTeam(team.id, team.team_name)}
+                                  onClick={() => handleDeleteTeam(team.id, team.team_name, [team.id_card_path, team.payment_screenshot_path])}
                                   className="p-1.5 bg-red-950/40 hover:bg-red-900 text-red-400 rounded border border-red-500/30 transition-colors inline-block"
                                   title="Delete Team (Admin Only)"
                                 >
@@ -735,6 +766,74 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
+                {/* Verification Documents (Private Storage via Signed URLs) */}
+                <div className="bg-[#141414] border border-white/10 rounded-xl p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <span className="font-orbitron font-bold text-white text-[11px] uppercase text-[#FF3030]">
+                      Verification Documents (Private Storage)
+                    </span>
+                    <span className="text-[10px] font-mono text-gray-400">
+                      Access via short-lived signed URLs (5 min expiry)
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Team Leader College ID Card */}
+                    <div className="bg-[#090909] border border-white/10 rounded-lg p-3 flex items-center justify-between">
+                      <div className="overflow-hidden mr-2">
+                        <div className="text-white font-semibold text-xs flex items-center space-x-1.5">
+                          <FileText className="w-3.5 h-3.5 text-[#FF3030] shrink-0" />
+                          <span className="truncate">Team Leader College ID Card</span>
+                        </div>
+                        <div className="text-[10px] font-mono text-gray-500 mt-0.5 truncate" title={selectedTeam.id_card_path || ''}>
+                          {selectedTeam.id_card_path ? selectedTeam.id_card_path.split('/').pop() : 'No file uploaded'}
+                        </div>
+                      </div>
+
+                      {selectedTeam.id_card_path ? (
+                        <button
+                          type="button"
+                          onClick={() => handleViewDocument(selectedTeam.id_card_path, 'Team Leader College ID Card')}
+                          disabled={loadingDocType === 'Team Leader College ID Card'}
+                          className="px-3 py-1.5 bg-[#E50914]/20 hover:bg-[#E50914] text-[#FF3030] hover:text-white border border-[#E50914] rounded text-xs font-orbitron font-semibold flex items-center space-x-1 transition-all shrink-0 disabled:opacity-50"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>{loadingDocType === 'Team Leader College ID Card' ? 'Signing...' : 'View Leader ID'}</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-mono text-gray-500 italic shrink-0">Not Uploaded</span>
+                      )}
+                    </div>
+
+                    {/* Payment Screenshot */}
+                    <div className="bg-[#090909] border border-white/10 rounded-lg p-3 flex items-center justify-between">
+                      <div className="overflow-hidden mr-2">
+                        <div className="text-white font-semibold text-xs flex items-center space-x-1.5">
+                          <CreditCard className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                          <span className="truncate">Payment Screenshot</span>
+                        </div>
+                        <div className="text-[10px] font-mono text-gray-500 mt-0.5 truncate" title={selectedTeam.payment_screenshot_path || ''}>
+                          {selectedTeam.payment_screenshot_path ? selectedTeam.payment_screenshot_path.split('/').pop() : 'No file uploaded'}
+                        </div>
+                      </div>
+
+                      {selectedTeam.payment_screenshot_path ? (
+                        <button
+                          type="button"
+                          onClick={() => handleViewDocument(selectedTeam.payment_screenshot_path, 'Payment Screenshot')}
+                          disabled={loadingDocType === 'Payment Screenshot'}
+                          className="px-3 py-1.5 bg-green-500/20 hover:bg-green-600 text-green-400 hover:text-white border border-green-500/50 rounded text-xs font-orbitron font-semibold flex items-center space-x-1 transition-all shrink-0 disabled:opacity-50"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>{loadingDocType === 'Payment Screenshot' ? 'Signing...' : 'View Proof'}</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-mono text-gray-500 italic shrink-0">Not Uploaded</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Status Update Controls */}
                 <div className="bg-[#140003] border border-[#E50914]/30 p-4 rounded-xl flex flex-wrap items-center justify-between gap-4">
                   <div>
@@ -787,13 +886,94 @@ export default function AdminDashboard() {
 
                 {isMainAdmin && (
                   <button
-                    onClick={() => handleDeleteTeam(selectedTeam.id, selectedTeam.team_name)}
+                    onClick={() => handleDeleteTeam(selectedTeam.id, selectedTeam.team_name, [selectedTeam.id_card_path, selectedTeam.payment_screenshot_path])}
                     className="px-4 py-1.5 bg-red-900/60 hover:bg-red-800 text-white rounded text-xs font-orbitron font-bold flex items-center space-x-1"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Delete Record</span>
                   </button>
                 )}
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* SECURE DOCUMENT PREVIEW MODAL (SIGNED URL ACCESS) */}
+        {/* ========================================================================= */}
+        {documentModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-lg animate-fadeIn">
+            <div className="relative w-full max-w-2xl bg-[#0e0e0e] border-2 border-[#E50914] rounded-2xl shadow-neon-red-lg overflow-hidden flex flex-col max-h-[90vh]">
+              
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 bg-[#140204] border-b border-[#E50914]/50">
+                <div className="flex items-center space-x-2">
+                  <Shield className="w-4 h-4 text-[#FF3030]" />
+                  <h3 className="font-orbitron font-bold text-white text-sm">
+                    {documentModal.title} — Secure Verification
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setDocumentModal(null)}
+                  className="p-1.5 text-gray-400 hover:text-white rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 overflow-y-auto flex items-center justify-center min-h-[320px]">
+                {documentModal.loading ? (
+                  <div className="text-center space-y-3">
+                    <RefreshCw className="w-8 h-8 text-[#FF3030] animate-spin mx-auto" />
+                    <p className="text-xs font-mono text-gray-400">Requesting authenticated signed URL from Supabase Storage...</p>
+                  </div>
+                ) : documentModal.error ? (
+                  <div className="text-center p-6 bg-red-950/40 border border-red-500/50 rounded-xl space-y-2 max-w-md">
+                    <AlertTriangle className="w-8 h-8 text-[#FF3030] mx-auto" />
+                    <p className="text-sm font-semibold text-white">Document Retrieval Failed</p>
+                    <p className="text-xs font-mono text-red-300">{documentModal.error}</p>
+                    <p className="text-[11px] font-mono text-gray-400 pt-2">
+                      Ensure the Storage migration SQL has been executed and your session is authenticated as Main Admin.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 w-full">
+                    <div className="bg-black/80 p-2 rounded-xl border border-white/10 flex items-center justify-center">
+                      <img 
+                        src={documentModal.url} 
+                        alt={documentModal.title} 
+                        className="max-h-[60vh] max-w-full object-contain rounded-lg shadow-cyber-card"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-xs font-mono text-gray-400 px-1">
+                      <span className="flex items-center space-x-1">
+                        <Clock className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Signed URL token active for 5 minutes</span>
+                      </span>
+                      <a 
+                        href={documentModal.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-[#00d2ff] hover:underline flex items-center space-x-1"
+                      >
+                        <span>Open Full Resolution</span>
+                        <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-3 bg-[#140204] border-t border-[#E50914]/40 flex justify-end">
+                <button
+                  onClick={() => setDocumentModal(null)}
+                  className="px-5 py-2 bg-gradient-to-r from-[#E50914] to-[#FF3030] text-white rounded text-xs font-orbitron font-bold uppercase transition-transform active:scale-95"
+                >
+                  Done Viewing
+                </button>
               </div>
 
             </div>

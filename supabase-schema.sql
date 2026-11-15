@@ -22,6 +22,8 @@ create table if not exists public.teams (
     project_description text,
     is_paid boolean default false not null,
     payment_reference text default '',
+    id_card_path text,
+    payment_screenshot_path text,
     status text default 'Registered' not null check (status in ('Registered', 'Confirmed', 'Under Review', 'Selected', 'Rejected')),
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
     updated_at timestamp with time zone default timezone('utc'::text, now()) not null
@@ -422,3 +424,57 @@ grant select, update, delete on table public.teams to authenticated;
 grant select, update, delete on table public.team_members to authenticated;
 grant select, update, delete on table public.enquiries to authenticated;
 grant select, insert, update, delete on table public.admin_profiles to authenticated;
+
+-- ==============================================================================
+-- 14. PRIVATE STORAGE BUCKET & STORAGE RLS POLICIES
+-- ==============================================================================
+-- Create or configure private storage bucket for registration documents
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'registration-documents',
+  'registration-documents',
+  false, -- STRICTLY PRIVATE: No direct public access
+  5242880, -- 5 MB Maximum File Size Limit
+  array['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+)
+on conflict (id) do update set
+  public = false,
+  file_size_limit = 5242880,
+  allowed_mime_types = array['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
+-- Enable RLS on storage.objects
+alter table storage.objects enable row level security;
+
+-- Drop existing storage policies for idempotence
+drop policy if exists "Public users can upload registration documents" on storage.objects;
+drop policy if exists "Main Admin can view registration documents" on storage.objects;
+drop policy if exists "Main Admin can delete registration documents" on storage.objects;
+
+-- 1. Public can upload documents during registration
+create policy "Public users can upload registration documents"
+    on storage.objects
+    for insert
+    to anon, authenticated
+    with check (
+        bucket_id = 'registration-documents'
+    );
+
+-- 2. ONLY authenticated Main Admin can view and generate signed URLs
+create policy "Main Admin can view registration documents"
+    on storage.objects
+    for select
+    to authenticated 
+    using (
+        bucket_id = 'registration-documents'
+        and public.is_admin()
+    );
+
+-- 3. ONLY authenticated Main Admin can delete documents
+create policy "Main Admin can delete registration documents"
+    on storage.objects
+    for delete
+    to authenticated 
+    using (
+        bucket_id = 'registration-documents'
+        and public.is_admin()
+    );

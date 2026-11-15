@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Shield, Lock, Mail, Key, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
@@ -7,17 +7,23 @@ export default function AdminLogin() {
   const { login, currentUser } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('neronova2026@gmail.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   // If already logged in, navigate straight to /admin
-  React.useEffect(() => {
+  useEffect(() => {
     if (currentUser) {
       navigate('/admin');
     }
   }, [currentUser, navigate]);
+
+  // Ensure email and password inputs start completely blank on page load
+  useEffect(() => {
+    setEmail('');
+    setPassword('');
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -75,37 +81,67 @@ export default function AdminLogin() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
+            {/* Hidden dummy fields to prevent aggressive browser autofill heuristics from injecting credentials */}
+            <input 
+              type="text" 
+              name="prevent_autofill_email" 
+              style={{ display: 'none' }} 
+              tabIndex={-1} 
+              autoComplete="off" 
+              aria-hidden="true" 
+            />
+            <input 
+              type="password" 
+              name="prevent_autofill_pwd" 
+              style={{ display: 'none' }} 
+              tabIndex={-1} 
+              autoComplete="off" 
+              aria-hidden="true" 
+            />
+
             <div>
-              <label className="block text-xs font-orbitron font-semibold text-gray-300 uppercase mb-1">
+              <label 
+                htmlFor="admin-email"
+                className="block text-xs font-orbitron font-semibold text-gray-300 uppercase mb-1"
+              >
                 Main Admin Email
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-gray-500 absolute left-3 top-3" />
+                <Mail className="w-4 h-4 text-gray-500 absolute left-3 top-3 pointer-events-none" />
                 <input
+                  id="admin-email"
+                  name="admin_login_email"
                   type="email"
                   required
+                  autoComplete="off"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="neronova2026@gmail.com"
-                  className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg pl-10 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914]"
+                  placeholder="Enter Admin Email"
+                  className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg pl-10 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914] placeholder:text-gray-500"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-orbitron font-semibold text-gray-300 uppercase mb-1">
+              <label 
+                htmlFor="admin-password"
+                className="block text-xs font-orbitron font-semibold text-gray-300 uppercase mb-1"
+              >
                 Security Password
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-gray-500 absolute left-3 top-3" />
+                <Lock className="w-4 h-4 text-gray-500 absolute left-3 top-3 pointer-events-none" />
                 <input
+                  id="admin-password"
+                  name="admin_login_password"
                   type="password"
                   required
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg pl-10 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914]"
+                  placeholder="Enter Password"
+                  className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg pl-10 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914] placeholder:text-gray-500"
                 />
               </div>
             </div>

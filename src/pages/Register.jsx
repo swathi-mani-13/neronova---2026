@@ -13,10 +13,22 @@ import {
   Printer, 
   Sparkles,
   ArrowRight,
-  Info
+  Info,
+  UploadCloud,
+  FileImage,
+  X,
+  QrCode
 } from 'lucide-react';
 import { DOMAIN_LIST } from './Domains';
-import { registerTeam, checkDuplicates } from '../lib/supabase';
+import { 
+  registerTeam, 
+  checkDuplicates, 
+  validateDocumentFile 
+} from '../lib/supabase';
+
+// Official Registration Payment QR Code image URL
+// Main Admin can update this path (e.g. '/payment-qr.png') once the official QR code is issued
+export const OFFICIAL_PAYMENT_QR_URL = '';
 
 const EMPTY_MEMBER = {
   name: '',
@@ -56,6 +68,15 @@ export default function Register() {
     { ...EMPTY_MEMBER } // Member 2
   ]);
 
+  // Mandatory Document Uploads State
+  const [idCardFile, setIdCardFile] = useState(null);
+  const [idCardPreview, setIdCardPreview] = useState(null);
+  const [idCardError, setIdCardError] = useState('');
+
+  const [paymentFile, setPaymentFile] = useState(null);
+  const [paymentPreview, setPaymentPreview] = useState(null);
+  const [paymentError, setPaymentError] = useState('');
+
   // UI / Status State
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -93,6 +114,45 @@ export default function Register() {
     setMembers(updated);
   };
 
+  // Document Upload Handlers
+  const handleIdCardChange = (e) => {
+    setIdCardError('');
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validation = validateDocumentFile(file, 'Team Leader College ID Card');
+    if (!validation.valid) {
+      setIdCardError(validation.error);
+      setIdCardFile(null);
+      setIdCardPreview(null);
+      return;
+    }
+
+    setIdCardFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setIdCardPreview(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const handlePaymentChange = (e) => {
+    setPaymentError('');
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validation = validateDocumentFile(file, 'Payment Screenshot');
+    if (!validation.valid) {
+      setPaymentError(validation.error);
+      setPaymentFile(null);
+      setPaymentPreview(null);
+      return;
+    }
+
+    setPaymentFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setPaymentPreview(reader.result);
+    reader.readAsDataURL(file);
+  };
+
   // Handle Form Submission with full validation and duplicate checks
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -106,6 +166,14 @@ export default function Register() {
       }
       if (!selectedDomain) {
         throw new Error('Please select a competition Domain.');
+      }
+
+      // 2. Validate Mandatory Document Uploads
+      if (!idCardFile) {
+        throw new Error('Mandatory Document Missing: Please upload Team Leader College ID Card.');
+      }
+      if (!paymentFile) {
+        throw new Error('Mandatory Document Missing: Please upload Payment Screenshot.');
       }
 
       // Check Leader Details
@@ -177,7 +245,11 @@ export default function Register() {
         ...members.map(m => ({ ...m, phone: m.phone.trim() }))
       ];
 
-      const result = await registerTeam(teamPayload, membersPayload);
+      const result = await registerTeam(
+        teamPayload, 
+        membersPayload, 
+        { idCardFile, paymentFile }
+      );
 
       if (result.success) {
         // Trigger celebratory confetti
@@ -194,7 +266,9 @@ export default function Register() {
           college_type: collegeType,
           selected_domain: selectedDomain,
           project_title: projectTitle.trim(),
-          all_members: membersPayload
+          all_members: membersPayload,
+          id_card_path: result.id_card_path,
+          payment_screenshot_path: result.payment_screenshot_path
         });
       } else {
         throw new Error(result.error || 'Registration failed. Please try again.');
@@ -311,6 +385,17 @@ export default function Register() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Document Verification & Status Banner */}
+            <div className="bg-[#141414] border border-[#E50914]/40 rounded-xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-4 h-4 text-[#FF3030] shrink-0" />
+                <span className="text-gray-300">Mandatory Verification Documents:</span>
+              </div>
+              <span className="px-3 py-1 bg-[#E50914]/20 text-[#FF3030] border border-[#E50914] rounded font-orbitron font-bold text-[11px] self-start sm:self-auto tracking-wider">
+                TEAM LEADER ID & PAYMENT PROOF UPLOADED • PENDING ADMIN REVIEW
+              </span>
             </div>
 
             {/* Actions */}
@@ -706,6 +791,258 @@ export default function Register() {
 
                   </div>
                 ))}
+              </div>
+
+              {/* =================================================================== */}
+              {/* SECTION 4: SCAN & PAY (REGISTRATION PAYMENT) */}
+              {/* =================================================================== */}
+              <div className="bg-[#0e0e0e] border border-[#E50914]/40 rounded-2xl p-6 sm:p-8 shadow-cyber-card space-y-6">
+                <div className="flex items-center justify-between border-l-4 border-[#E50914] pl-2.5">
+                  <div className="flex items-center space-x-2 text-[#FF3030] font-orbitron font-bold text-sm tracking-wider uppercase">
+                    <QrCode className="w-4 h-4 text-[#FF3030]" />
+                    <span>4. Scan & Pay</span>
+                  </div>
+                  <span className="bg-[#E50914]/20 border border-[#E50914] text-[#FF3030] font-orbitron text-[10px] px-2.5 py-0.5 rounded uppercase font-bold">
+                    UPI PAYMENT GATEWAY
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                  
+                  {/* Empty QR Code Display Box with Placeholder */}
+                  <div className="md:col-span-1 flex flex-col items-center justify-center">
+                    <div className="w-56 h-56 sm:w-60 sm:h-60 bg-[#141414] border-2 border-dashed border-[#E50914]/50 rounded-2xl flex flex-col items-center justify-center p-6 text-center relative overflow-hidden group shadow-neon-red">
+                      {OFFICIAL_PAYMENT_QR_URL ? (
+                        <img 
+                          src={OFFICIAL_PAYMENT_QR_URL} 
+                          alt="NERONOVA 2026 Official Payment QR Code" 
+                          className="w-full h-full object-contain rounded-lg"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center space-y-3">
+                          <div className="w-14 h-14 rounded-xl bg-[#2a0004] border border-[#FF3030]/60 flex items-center justify-center text-[#FF3030]">
+                            <QrCode className="w-8 h-8 opacity-70" />
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-xs font-orbitron font-bold text-white block uppercase tracking-wide">
+                              Scan & Pay
+                            </span>
+                            <span className="text-[11px] font-mono text-gray-400 block px-2 leading-relaxed">
+                              Payment QR Code will be updated soon.
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Payment Instructions */}
+                  <div className="md:col-span-2 space-y-4 text-xs font-mono">
+                    <div className="bg-[#141414] border border-white/10 rounded-xl p-5 space-y-3">
+                      <span className="font-orbitron font-bold text-white text-xs uppercase text-[#FF3030] block">
+                        Payment & Verification Instructions:
+                      </span>
+                      <ol className="list-decimal list-inside space-y-2 text-gray-300 leading-relaxed">
+                        <li>
+                          Once the official QR code is updated, scan the QR code using any UPI app (Google Pay, PhonePe, Paytm, BHIM, etc.).
+                        </li>
+                        <li>
+                          Complete the registration fee payment for your team.
+                        </li>
+                        <li>
+                          Capture a clear screenshot showing the successful payment status and the <strong className="text-white">Transaction / Reference ID (UTR)</strong>.
+                        </li>
+                        <li>
+                          Upload the screenshot in the <span className="text-[#FF3030] font-bold">"Upload Payment Screenshot"</span> field below.
+                        </li>
+                      </ol>
+                    </div>
+
+                    <div className="bg-[#140003] border border-[#E50914]/30 rounded-xl p-3.5 flex items-start space-x-2.5 text-[11px] text-gray-400">
+                      <Info className="w-4 h-4 text-[#FF3030] shrink-0 mt-0.5" />
+                      <span>
+                        Note: Registration approval requires both the Team Leader College ID Card and the Payment Screenshot proof.
+                      </span>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* =================================================================== */}
+              {/* SECTION 5: MANDATORY DOCUMENT VERIFICATION */}
+              {/* =================================================================== */}
+              <div className="bg-[#0e0e0e] border border-[#E50914]/40 rounded-2xl p-6 sm:p-8 shadow-cyber-card space-y-6">
+                <div className="flex items-center justify-between border-l-4 border-[#E50914] pl-2.5">
+                  <div className="flex items-center space-x-2 text-[#FF3030] font-orbitron font-bold text-sm tracking-wider uppercase">
+                    <span>5. Upload Verification Documents (Mandatory)</span>
+                  </div>
+                  <span className="bg-[#E50914]/20 border border-[#E50914] text-[#FF3030] font-orbitron text-[10px] px-2.5 py-0.5 rounded uppercase font-bold">
+                    REQUIRED
+                  </span>
+                </div>
+
+                <p className="text-gray-400 text-xs leading-relaxed">
+                  Both uploads are mandatory to complete registration. Accepted file formats: <span className="text-white font-mono font-bold">JPG, JPEG, PNG, WEBP</span> (Maximum file size: <span className="text-[#FF3030] font-mono font-bold">5 MB</span> per document).
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {/* Upload 1: Team Leader College ID Card */}
+                  <div className={`p-5 rounded-xl border transition-all ${
+                    idCardFile 
+                      ? 'bg-[#141414] border-green-500/60 shadow-sm' 
+                      : idCardError 
+                        ? 'bg-[#2a0004] border-[#FF3030]' 
+                        : 'bg-[#141414] border-white/10 hover:border-[#E50914]/60'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-orbitron font-bold text-white uppercase flex items-center space-x-1.5">
+                        <FileImage className="w-4 h-4 text-[#FF3030]" />
+                        <span>Upload Team Leader College ID Card *</span>
+                      </label>
+                      {idCardFile && (
+                        <span className="text-[10px] font-mono text-green-400 flex items-center space-x-1">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>ATTACHED</span>
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-400 mb-3">
+                      Upload a clear image of the Team Leader's valid college ID card. Only the Team Leader's ID card is required.
+                    </p>
+
+                    {idCardPreview ? (
+                      <div className="relative group rounded-lg overflow-hidden border border-white/20 bg-black/40">
+                        <img 
+                          src={idCardPreview} 
+                          alt="Team Leader College ID Card Preview" 
+                          className="w-full h-36 object-contain bg-black/60 p-1"
+                        />
+                        <div className="p-2.5 bg-[#090909] border-t border-white/10 flex items-center justify-between text-xs">
+                          <span className="truncate max-w-[180px] font-mono text-gray-300 text-[11px]" title={idCardFile.name}>
+                            {idCardFile.name}
+                          </span>
+                          <span className="text-gray-500 font-mono text-[10px]">
+                            {(idCardFile.size / (1024 * 1024)).toFixed(2)} MB
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIdCardFile(null);
+                            setIdCardPreview(null);
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-red-600/80 hover:bg-red-600 text-white rounded-md transition-colors"
+                          title="Remove Team Leader ID Card file"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center border-2 border-dashed border-white/20 hover:border-[#E50914] rounded-xl p-6 cursor-pointer bg-black/30 hover:bg-[#E50914]/5 transition-all group">
+                        <UploadCloud className="w-8 h-8 text-gray-400 group-hover:text-[#FF3030] transition-colors mb-2" />
+                        <span className="text-xs font-orbitron font-semibold text-gray-300 group-hover:text-white text-center">
+                          Upload Team Leader College ID Card
+                        </span>
+                        <span className="text-[10px] font-mono text-gray-500 mt-1">
+                          JPG, JPEG, PNG, WEBP (Max 5MB)
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/jpg,.jpg,.jpeg,.png,.webp"
+                          onChange={handleIdCardChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+
+                    {idCardError && (
+                      <p className="mt-2 text-xs text-red-400 font-mono flex items-center space-x-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>{idCardError}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Upload 2: Payment Screenshot */}
+                  <div className={`p-5 rounded-xl border transition-all ${
+                    paymentFile 
+                      ? 'bg-[#141414] border-green-500/60 shadow-sm' 
+                      : paymentError 
+                        ? 'bg-[#2a0004] border-[#FF3030]' 
+                        : 'bg-[#141414] border-white/10 hover:border-[#E50914]/60'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-orbitron font-bold text-white uppercase flex items-center space-x-1.5">
+                        <FileImage className="w-4 h-4 text-[#FF3030]" />
+                        <span>Upload Payment Screenshot *</span>
+                      </label>
+                      {paymentFile && (
+                        <span className="text-[10px] font-mono text-green-400 flex items-center space-x-1">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>ATTACHED</span>
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-400 mb-3">
+                      Upload your successful payment screenshot after making the registration payment.
+                    </p>
+
+                    {paymentPreview ? (
+                      <div className="relative group rounded-lg overflow-hidden border border-white/20 bg-black/40">
+                        <img 
+                          src={paymentPreview} 
+                          alt="Payment Screenshot Preview" 
+                          className="w-full h-36 object-contain bg-black/60 p-1"
+                        />
+                        <div className="p-2.5 bg-[#090909] border-t border-white/10 flex items-center justify-between text-xs">
+                          <span className="truncate max-w-[180px] font-mono text-gray-300 text-[11px]" title={paymentFile.name}>
+                            {paymentFile.name}
+                          </span>
+                          <span className="text-gray-500 font-mono text-[10px]">
+                            {(paymentFile.size / (1024 * 1024)).toFixed(2)} MB
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPaymentFile(null);
+                            setPaymentPreview(null);
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-red-600/80 hover:bg-red-600 text-white rounded-md transition-colors"
+                          title="Remove payment screenshot"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center border-2 border-dashed border-white/20 hover:border-[#E50914] rounded-xl p-6 cursor-pointer bg-black/30 hover:bg-[#E50914]/5 transition-all group">
+                        <UploadCloud className="w-8 h-8 text-gray-400 group-hover:text-[#FF3030] transition-colors mb-2" />
+                        <span className="text-xs font-orbitron font-semibold text-gray-300 group-hover:text-white text-center">
+                          Upload Payment Screenshot
+                        </span>
+                        <span className="text-[10px] font-mono text-gray-500 mt-1">
+                          JPG, JPEG, PNG, WEBP (Max 5MB)
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/jpg,.jpg,.jpeg,.png,.webp"
+                          onChange={handlePaymentChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+
+                    {paymentError && (
+                      <p className="mt-2 text-xs text-red-400 font-mono flex items-center space-x-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>{paymentError}</span>
+                      </p>
+                    )}
+                  </div>
+
+                </div>
               </div>
 
               {/* Submit Action Button */}

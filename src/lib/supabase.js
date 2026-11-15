@@ -22,6 +22,94 @@ export const supabase = isSupabaseConfigured
     })
   : null;
 
+// ==============================================================================
+// STORAGE & DOCUMENT CONSTANTS
+// ==============================================================================
+export const REGISTRATION_DOCUMENTS_BUCKET = 'registration-documents';
+export const MAX_DOCUMENT_FILE_SIZE = 5 * 1024 * 1024; // 5 MB maximum limit
+export const ALLOWED_DOCUMENT_MIME_TYPES = [
+  'image/jpeg', 
+  'image/jpg', 
+  'image/png', 
+  'image/webp'
+];
+export const ALLOWED_DOCUMENT_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
+
+// Validate Document Uploads (Size <= 5MB, format: JPG, JPEG, PNG, WEBP)
+export function validateDocumentFile(file, label = 'Document') {
+  if (!file) {
+    return { valid: false, error: `${label} is mandatory. Please select a valid file.` };
+  }
+  if (file.size > MAX_DOCUMENT_FILE_SIZE) {
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+    return { 
+      valid: false, 
+      error: `${label} exceeds the maximum allowed size of 5 MB (Current size: ${sizeMB} MB). Please compress or choose a smaller image.` 
+    };
+  }
+  const extension = file.name ? file.name.split('.').pop()?.toLowerCase() : '';
+  const isMimeValid = ALLOWED_DOCUMENT_MIME_TYPES.includes(file.type?.toLowerCase());
+  const isExtValid = ALLOWED_DOCUMENT_EXTENSIONS.includes(extension);
+
+  if (!isMimeValid && !isExtValid) {
+    return { 
+      valid: false, 
+      error: `${label} format is invalid. Allowed formats: JPG, JPEG, PNG, WEBP.` 
+    };
+  }
+
+  return { valid: true };
+}
+
+// Upload a document to private Supabase Storage bucket
+export async function uploadRegistrationDocument(file, folder, regId) {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Document upload aborted.');
+  }
+
+  const ext = (file.name ? file.name.split('.').pop()?.toLowerCase() : '') || 'jpg';
+  const cleanReg = regId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const uniqueName = `${cleanReg}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+  const filePath = `${folder}/${uniqueName}`;
+
+  const { data, error } = await supabase.storage
+    .from(REGISTRATION_DOCUMENTS_BUCKET)
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+
+  if (error) {
+    console.error(`Supabase storage upload error (${folder}):`, error);
+    throw new Error(`Failed to upload ${folder === 'id-cards' ? 'Team Leader College ID Card' : 'Payment Screenshot'}: ${error.message}`);
+  }
+
+  return data?.path || filePath;
+}
+
+// Get temporary signed URL for a private document (Main Admin Only)
+export async function getDocumentSignedUrl(filePath, expiresIn = 300) {
+  if (!isSupabaseConfigured || !filePath) {
+    return { success: false, error: 'Invalid document path or Supabase unconfigured.' };
+  }
+
+  try {
+    const { data, error } = await supabase.storage
+      .from(REGISTRATION_DOCUMENTS_BUCKET)
+      .createSignedUrl(filePath, expiresIn);
+
+    if (error) {
+      console.error('Error generating signed URL:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, signedUrl: data.signedUrl };
+  } catch (err) {
+    console.error('Exception generating signed URL:', err);
+    return { success: false, error: err.message || 'Failed to generate signed document URL.' };
+  }
+}
+
 // Generate unique registration ID: NERO-2026-XXXX
 export function generateRegistrationId() {
   const randomNum = Math.floor(1000 + Math.random() * 9000);
@@ -73,7 +161,7 @@ export async function checkDuplicates({ email, phone, teamName }) {
 
 // Register Team & Members in Supabase
 // Uses client-generated teamId to avoid needing public SELECT permissions on teams/members
-export async function registerTeam(teamData, membersData) {
+export async function registerTeam(teamData, membersData, documents = {}) {
   if (!isSupabaseConfigured) {
     return {
       success: false,
@@ -85,7 +173,32 @@ export async function registerTeam(teamData, membersData) {
   const teamId = generateUUID();
 
   try {
-    // 1. Insert Team (No select needed, client knows teamId upfront)
+    // 0. Validate Mandatory Document Uploads
+    const idCardValidation = validateDocumentFile(documents?.idCardFile, 'Team Leader College ID Card');
+    if (!idCardValidation.valid) {
+      return { success: false, error: idCardValidation.error };
+    }
+
+    const paymentValidation = validateDocumentFile(documents?.paymentFile, 'Payment Screenshot');
+    if (!paymentValidation.valid) {
+      return { success: false, error: paymentValidation.error };
+    }
+
+    // 1. Upload Mandatory Documents to Private Supabase Storage FIRST
+    let idCardPath = null;
+    let paymentScreenshotPath = null;
+    try {
+      idCardPath = await uploadRegistrationDocument(documents.idCardFile, 'id-cards', regId);
+      paymentScreenshotPath = await uploadRegistrationDocument(documents.paymentFile, 'payments', regId);
+    } catch (uploadErr) {
+      console.error('Document upload failure:', uploadErr);
+      return {
+        success: false,
+        error: `Mandatory Document Upload Failed: ${uploadErr.message}. Registration was stopped to protect submission integrity.`
+      };
+    }
+
+    // 2. Insert Team (No select needed, client knows teamId upfront)
     const { error: teamErr } = await supabase
       .from('teams')
       .insert([{
@@ -96,6 +209,8 @@ export async function registerTeam(teamData, membersData) {
         selected_domain: teamData.selected_domain,
         project_title: teamData.project_title ? teamData.project_title.trim() : null,
         project_description: teamData.project_description ? teamData.project_description.trim() : null,
+        id_card_path: idCardPath,
+        payment_screenshot_path: paymentScreenshotPath,
         is_paid: false,
         payment_reference: '',
         status: 'Registered'
@@ -103,6 +218,13 @@ export async function registerTeam(teamData, membersData) {
 
     if (teamErr) {
       console.error('Supabase team insertion error:', teamErr);
+      // Clean up uploaded files in case of database error
+      try {
+        await supabase.storage.from(REGISTRATION_DOCUMENTS_BUCKET).remove([idCardPath, paymentScreenshotPath]);
+      } catch (cleanupErr) {
+        console.warn('Storage cleanup warning:', cleanupErr);
+      }
+
       if (teamErr.code === '23505' || teamErr.message?.includes('unique')) {
         return {
           success: false,
@@ -115,7 +237,7 @@ export async function registerTeam(teamData, membersData) {
       };
     }
 
-    // 2. Insert Team Members
+    // 3. Insert Team Members
     const membersToInsert = membersData.map((m, index) => ({
       id: generateUUID(),
       team_id: teamId,
@@ -134,6 +256,13 @@ export async function registerTeam(teamData, membersData) {
 
     if (membersErr) {
       console.error('Supabase members insertion error:', membersErr);
+      // Clean up uploaded files in case of members error
+      try {
+        await supabase.storage.from(REGISTRATION_DOCUMENTS_BUCKET).remove([idCardPath, paymentScreenshotPath]);
+      } catch (cleanupErr) {
+        console.warn('Storage cleanup warning:', cleanupErr);
+      }
+
       if (membersErr.code === '23505' || membersErr.message?.includes('unique')) {
         return {
           success: false,
@@ -149,7 +278,9 @@ export async function registerTeam(teamData, membersData) {
     return {
       success: true,
       registration_id: regId,
-      team_id: teamId
+      team_id: teamId,
+      id_card_path: idCardPath,
+      payment_screenshot_path: paymentScreenshotPath
     };
   } catch (err) {
     console.error('Unexpected error during registration:', err);
@@ -329,12 +460,24 @@ export async function updateTeamStatus(teamId, newStatus) {
 }
 
 // Delete team from Supabase (Main Admin role only)
-export async function deleteTeam(teamId) {
+export async function deleteTeam(teamId, documentPaths = []) {
   if (!isSupabaseConfigured) {
     return { success: false, error: 'Database is not connected.' };
   }
 
   try {
+    // If document paths are provided, clean up files from private storage
+    if (Array.isArray(documentPaths) && documentPaths.length > 0) {
+      const validPaths = documentPaths.filter(p => typeof p === 'string' && p.trim().length > 0);
+      if (validPaths.length > 0) {
+        try {
+          await supabase.storage.from(REGISTRATION_DOCUMENTS_BUCKET).remove(validPaths);
+        } catch (storageErr) {
+          console.warn('Storage cleanup notice during team deletion:', storageErr);
+        }
+      }
+    }
+
     const { error } = await supabase
       .from('teams')
       .delete()
