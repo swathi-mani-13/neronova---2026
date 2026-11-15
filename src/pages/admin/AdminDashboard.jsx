@@ -24,7 +24,10 @@ import {
   Award,
   Layers,
   AlertTriangle,
-  FileText
+  FileText,
+  Mail,
+  MessageSquare,
+  Inbox
 } from 'lucide-react';
 import { useAuth, ADMIN_ROLES } from '../../lib/auth';
 import { 
@@ -33,6 +36,9 @@ import {
   updateTeamStatus, 
   deleteTeam, 
   getDocumentSignedUrl,
+  fetchAllEnquiries,
+  updateEnquiryStatus,
+  deleteEnquiry,
   isSupabaseConfigured 
 } from '../../lib/supabase';
 import { DOMAIN_LIST } from '../Domains';
@@ -50,12 +56,20 @@ export default function AdminDashboard() {
   const [collegeTypeFilter, setCollegeTypeFilter] = useState('ALL');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [activeTab, setActiveTab] = useState('teams'); // 'teams' | 'analytics'
+  const [activeTab, setActiveTab] = useState('teams'); // 'teams' | 'analytics' | 'enquiries'
   const [actionSuccess, setActionSuccess] = useState('');
+
+  // Enquiries State
+  const [enquiries, setEnquiries] = useState([]);
+  const [enquiriesLoading, setEnquiriesLoading] = useState(false);
+  const [enquiriesError, setEnquiriesError] = useState('');
+  const [selectedEnquiry, setSelectedEnquiry] = useState(null);
+  const [enquirySearchQuery, setEnquirySearchQuery] = useState('');
+  const [enquiryStatusFilter, setEnquiryStatusFilter] = useState('ALL');
 
   // Document Verification Preview State
   const [documentModal, setDocumentModal] = useState(null); // { title: string, url: string, loading: boolean, error: string }
-  const [loadingDocType, setLoadingDocType] = useState(null); // 'Student ID Card' | 'Payment Screenshot' | null
+  const [loadingDocType, setLoadingDocType] = useState(null); // 'Team Leader College ID Card' | 'Payment Screenshot' | null
 
   // Authentication check
   useEffect(() => {
@@ -64,16 +78,28 @@ export default function AdminDashboard() {
     }
   }, [currentUser, navigate]);
 
-  // Load Real Database Statistics
+  // Load Real Database Statistics & Official Enquiries
   const loadData = async () => {
     setLoading(true);
+    setEnquiriesLoading(true);
+    setEnquiriesError('');
     try {
-      const data = await getRealDatabaseStatistics();
-      setStats(data);
+      const [statsData, enquiriesRes] = await Promise.all([
+        getRealDatabaseStatistics(),
+        fetchAllEnquiries()
+      ]);
+      setStats(statsData);
+      if (enquiriesRes.success) {
+        setEnquiries(enquiriesRes.data || []);
+      } else {
+        setEnquiriesError(enquiriesRes.error || 'Failed to fetch enquiries.');
+      }
     } catch (err) {
-      console.error('Failed to load database stats', err);
+      console.error('Failed to load database stats and enquiries', err);
+      setEnquiriesError(err.message || 'Error communicating with database.');
     } finally {
       setLoading(false);
+      setEnquiriesLoading(false);
     }
   };
 
@@ -115,6 +141,57 @@ export default function AdminDashboard() {
 
     return matchesSearch && matchesDomain && matchesCollegeType && matchesPayment && matchesStatus;
   });
+
+  // Filtered Enquiries List
+  const filteredEnquiries = enquiries.filter((enq) => {
+    const q = enquirySearchQuery.toLowerCase().trim();
+    const matchesSearch = !q ||
+      (enq.name && enq.name.toLowerCase().includes(q)) ||
+      (enq.email && enq.email.toLowerCase().includes(q)) ||
+      (enq.phone && enq.phone.includes(q)) ||
+      (enq.subject && enq.subject.toLowerCase().includes(q)) ||
+      (enq.message && enq.message.toLowerCase().includes(q));
+
+    const matchesStatus = enquiryStatusFilter === 'ALL' || enq.status === enquiryStatusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  // Action: Update Enquiry Status
+  const handleUpdateEnquiryStatus = async (enquiryId, newStatus) => {
+    const res = await updateEnquiryStatus(enquiryId, newStatus);
+    if (res.success) {
+      setActionSuccess(`Enquiry status updated to '${newStatus}'.`);
+      setTimeout(() => setActionSuccess(''), 3000);
+      setEnquiries(prev => prev.map(e => e.id === enquiryId ? { ...e, status: newStatus } : e));
+      if (selectedEnquiry && selectedEnquiry.id === enquiryId) {
+        setSelectedEnquiry(prev => ({ ...prev, status: newStatus }));
+      }
+    } else {
+      alert(`Failed to update status: ${res.error}`);
+    }
+  };
+
+  // Action: Delete Enquiry (Main Admin only)
+  const handleDeleteEnquiry = async (enquiryId, studentName) => {
+    if (!isMainAdmin) {
+      alert('Only Main Admin has permission to delete enquiry records.');
+      return;
+    }
+    if (window.confirm(`Are you sure you want to permanently delete the enquiry from "${studentName}"? This action cannot be undone.`)) {
+      const res = await deleteEnquiry(enquiryId);
+      if (res.success) {
+        setActionSuccess(`Enquiry from "${studentName}" was permanently deleted.`);
+        setTimeout(() => setActionSuccess(''), 3000);
+        setEnquiries(prev => prev.filter(e => e.id !== enquiryId));
+        if (selectedEnquiry && selectedEnquiry.id === enquiryId) {
+          setSelectedEnquiry(null);
+        }
+      } else {
+        alert(`Failed to delete enquiry: ${res.error}`);
+      }
+    }
+  };
 
   // Action: Toggle Payment Status
   const handleTogglePayment = async (teamId, currentIsPaid) => {
@@ -255,6 +332,22 @@ export default function AdminDashboard() {
     XLSX.utils.book_append_sheet(wb, wsColleges, 'College Breakdown');
     XLSX.utils.book_append_sheet(wb, wsDomains, 'Domain Breakdown');
 
+    // 5. Enquiries Sheet Data (if records exist)
+    if (enquiries && enquiries.length > 0) {
+      const enquiriesData = enquiries.map((e, idx) => ({
+        'S.No': idx + 1,
+        'Student Name': e.name,
+        'Email Address': e.email,
+        'Phone Number': e.phone,
+        'Enquiry Subject': e.subject,
+        'Message / Query': e.message,
+        'Status': e.status || 'Pending',
+        'Submission Date': new Date(e.created_at).toLocaleString('en-IN')
+      }));
+      const wsEnquiries = XLSX.utils.json_to_sheet(enquiriesData);
+      XLSX.utils.book_append_sheet(wb, wsEnquiries, 'Official Enquiries');
+    }
+
     // Download file
     const timestamp = new Date().toISOString().split('T')[0];
     XLSX.writeFile(wb, `NERONOVA_2026_Official_Registrations_${timestamp}.xlsx`);
@@ -341,7 +434,7 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
             
             {/* 1. Total Registered Teams */}
             <div className="bg-[#0e0e0e] border border-[#E50914]/40 rounded-xl p-4 shadow-cyber-card">
@@ -397,11 +490,25 @@ export default function AdminDashboard() {
               <div className="text-[10px] text-amber-500/70 font-mono mt-1">Pending Payment</div>
             </div>
 
+            {/* 7. Official Enquiries */}
+            <div 
+              onClick={() => setActiveTab('enquiries')}
+              className="bg-[#0e0e0e] border border-blue-500/40 rounded-xl p-4 shadow-cyber-card cursor-pointer hover:border-blue-400 transition-colors"
+            >
+              <span className="text-[10px] font-mono text-gray-400 uppercase block mb-1">Official Enquiries</span>
+              <div className="text-2xl sm:text-3xl font-orbitron font-black text-[#00d2ff]">
+                {enquiries.length}
+              </div>
+              <div className="text-[10px] text-blue-400/80 font-mono mt-1">
+                {enquiries.filter(e => e.status === 'Pending').length} Pending Review
+              </div>
+            </div>
+
           </div>
         </section>
 
-        {/* View Switcher: Teams Table vs Analytics Breakdown */}
-        <div className="flex items-center space-x-3 border-b border-white/10 pb-3">
+        {/* View Switcher: Teams Table vs Analytics Breakdown vs Official Enquiries */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-white/10 pb-3">
           <button
             onClick={() => setActiveTab('teams')}
             className={`px-4 py-2 font-orbitron font-bold text-xs uppercase rounded transition-colors ${
@@ -422,6 +529,23 @@ export default function AdminDashboard() {
             }`}
           >
             College & Domain Breakdown
+          </button>
+
+          <button
+            onClick={() => setActiveTab('enquiries')}
+            className={`px-4 py-2 font-orbitron font-bold text-xs uppercase rounded transition-colors flex items-center space-x-1.5 ${
+              activeTab === 'enquiries'
+                ? 'bg-[#E50914] text-white shadow-neon-red'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Mail className="w-3.5 h-3.5" />
+            <span>Official Enquiries ({enquiries.length})</span>
+            {enquiries.filter(e => e.status === 'Pending').length > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 bg-[#FF3030] text-white text-[10px] font-mono font-bold rounded-full">
+                {enquiries.filter(e => e.status === 'Pending').length}
+              </span>
+            )}
           </button>
         </div>
 
@@ -672,6 +796,175 @@ export default function AdminDashboard() {
         )}
 
         {/* ========================================================================= */}
+        {/* TAB 3: OFFICIAL ENQUIRIES */}
+        {/* ========================================================================= */}
+        {activeTab === 'enquiries' && (
+          <section className="space-y-4">
+            
+            {/* Filter & Search Bar */}
+            <div className="bg-[#0e0e0e] border border-white/10 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              
+              {/* Search input */}
+              <div className="relative sm:col-span-2">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                <input
+                  type="text"
+                  value={enquirySearchQuery}
+                  onChange={(e) => setEnquirySearchQuery(e.target.value)}
+                  placeholder="Search by student name, email, phone, subject, or query text..."
+                  className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg pl-9 pr-4 py-2 text-xs text-white placeholder-gray-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Status Filter */}
+              <div>
+                <select
+                  value={enquiryStatusFilter}
+                  onChange={(e) => setEnquiryStatusFilter(e.target.value)}
+                  className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
+                >
+                  <option value="ALL">All Statuses ({enquiries.length})</option>
+                  <option value="Pending">Pending Only ({enquiries.filter(e => e.status === 'Pending').length})</option>
+                  <option value="In Review">In Review Only ({enquiries.filter(e => e.status === 'In Review').length})</option>
+                  <option value="Resolved">Resolved Only ({enquiries.filter(e => e.status === 'Resolved').length})</option>
+                </select>
+              </div>
+
+            </div>
+
+            {/* Enquiries Content State */}
+            {enquiriesLoading ? (
+              <div className="bg-[#0e0e0e] border border-white/10 rounded-xl p-12 text-center space-y-3">
+                <RefreshCw className="w-8 h-8 text-[#FF3030] animate-spin mx-auto" />
+                <p className="text-xs font-mono text-gray-400">Fetching official enquiry transmissions from Supabase...</p>
+              </div>
+            ) : enquiriesError ? (
+              <div className="bg-[#2a0004] border border-[#FF3030] rounded-xl p-6 text-center space-y-3">
+                <AlertTriangle className="w-8 h-8 text-[#FF3030] mx-auto" />
+                <p className="text-sm font-semibold text-white">Failed to Load Enquiries</p>
+                <p className="text-xs font-mono text-red-300">{enquiriesError}</p>
+                <button
+                  onClick={loadData}
+                  className="px-4 py-1.5 bg-[#E50914] text-white rounded text-xs font-orbitron font-bold"
+                >
+                  Retry Connection
+                </button>
+              </div>
+            ) : filteredEnquiries.length === 0 ? (
+              <div className="bg-[#0e0e0e] border border-white/10 rounded-xl p-12 text-center space-y-3">
+                <Inbox className="w-10 h-10 text-gray-500 mx-auto" />
+                <p className="text-sm font-orbitron font-semibold text-gray-300">
+                  {enquiries.length === 0 ? 'No enquiries received yet.' : 'No Matching Enquiries Found'}
+                </p>
+                <p className="text-xs font-mono text-gray-500">
+                  {enquiries.length === 0
+                    ? 'No enquiries received yet.'
+                    : 'No official enquiries match the current filter criteria.'}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-[#0e0e0e] border border-white/10 rounded-xl overflow-hidden shadow-cyber-card">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-[#141414] text-gray-400 uppercase border-b border-white/10 font-orbitron text-[10px]">
+                      <tr>
+                        <th className="px-4 py-3">Submission Date</th>
+                        <th className="px-4 py-3">Student Name</th>
+                        <th className="px-4 py-3">Email Address</th>
+                        <th className="px-4 py-3">Phone</th>
+                        <th className="px-4 py-3">Enquiry Subject</th>
+                        <th className="px-4 py-3">Message Preview</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {filteredEnquiries.map((enq) => (
+                        <tr key={enq.id} className="hover:bg-white/5 transition-colors">
+                          {/* Date */}
+                          <td className="px-4 py-3 text-gray-400 whitespace-nowrap">
+                            {new Date(enq.created_at).toLocaleString('en-IN', {
+                              dateStyle: 'medium',
+                              timeStyle: 'short'
+                            })}
+                          </td>
+
+                          {/* Student Name */}
+                          <td className="px-4 py-3 font-semibold text-white whitespace-nowrap">
+                            {enq.name}
+                          </td>
+
+                          {/* Email */}
+                          <td className="px-4 py-3 text-gray-300">
+                            <a href={`mailto:${enq.email}`} className="hover:text-[#00d2ff] transition-colors">
+                              {enq.email}
+                            </a>
+                          </td>
+
+                          {/* Phone */}
+                          <td className="px-4 py-3 text-[#FF3030] whitespace-nowrap">
+                            <a href={`tel:${enq.phone}`} className="hover:underline">
+                              {enq.phone}
+                            </a>
+                          </td>
+
+                          {/* Subject */}
+                          <td className="px-4 py-3 text-gray-300 font-semibold whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-white/5 border border-white/10">
+                              {enq.subject}
+                            </span>
+                          </td>
+
+                          {/* Message Preview */}
+                          <td className="px-4 py-3 text-gray-400 max-w-xs truncate" title={enq.message}>
+                            {enq.message}
+                          </td>
+
+                          {/* Status */}
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`px-2.5 py-1 rounded text-[10px] font-orbitron font-bold uppercase ${
+                              enq.status === 'Resolved'
+                                ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                                : enq.status === 'In Review'
+                                ? 'bg-blue-500/20 text-[#00d2ff] border border-blue-500/50'
+                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
+                            }`}>
+                              {enq.status || 'Pending'}
+                            </span>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                            <button
+                              onClick={() => setSelectedEnquiry(enq)}
+                              className="p-1.5 bg-[#141414] hover:bg-white/10 text-gray-300 hover:text-white rounded border border-white/10 transition-colors inline-block"
+                              title="Read Full Enquiry"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+
+                            {isMainAdmin && (
+                              <button
+                                onClick={() => handleDeleteEnquiry(enq.id, enq.name)}
+                                className="p-1.5 bg-red-950/40 hover:bg-red-900 text-red-400 rounded border border-red-500/30 transition-colors inline-block"
+                                title="Delete Enquiry"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+          </section>
+        )}
+
+        {/* ========================================================================= */}
         {/* INDIVIDUAL TEAM DETAILS MODAL */}
         {/* ========================================================================= */}
         {selectedTeam && (
@@ -891,6 +1184,160 @@ export default function AdminDashboard() {
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Delete Record</span>
+                  </button>
+                )}
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* INDIVIDUAL ENQUIRY DETAILS MODAL */}
+        {/* ========================================================================= */}
+        {selectedEnquiry && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md animate-fadeIn">
+            <div className="relative w-full max-w-2xl bg-[#0e0e0e] border-2 border-[#E50914] rounded-2xl shadow-neon-red-lg overflow-hidden max-h-[90vh] flex flex-col">
+              
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 bg-[#140204] border-b border-[#E50914]/50">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-[#E50914]/20 border border-[#E50914] flex items-center justify-center text-[#FF3030]">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-mono text-[#FF3030] uppercase block">
+                      OFFICIAL ENQUIRY TRANSMISSION
+                    </span>
+                    <h2 className="text-lg font-orbitron font-extrabold text-white">
+                      {selectedEnquiry.name}
+                    </h2>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setSelectedEnquiry(null)}
+                  className="p-1.5 text-gray-400 hover:text-white rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Scroll Body */}
+              <div className="p-6 overflow-y-auto space-y-5 text-xs text-gray-300">
+                
+                {/* Meta details grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#141414] p-4 rounded-xl border border-white/10 font-mono">
+                  <div>
+                    <span className="text-gray-500 block text-[10px] uppercase">EMAIL</span>
+                    <a href={`mailto:${selectedEnquiry.email}`} className="text-white hover:text-[#00d2ff] font-bold break-all">
+                      {selectedEnquiry.email}
+                    </a>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block text-[10px] uppercase">PHONE</span>
+                    <a href={`tel:${selectedEnquiry.phone}`} className="text-[#FF3030] font-bold block">
+                      {selectedEnquiry.phone}
+                    </a>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block text-[10px] uppercase">STATUS</span>
+                    <span className={`font-bold block ${
+                      selectedEnquiry.status === 'Resolved' 
+                        ? 'text-green-400' 
+                        : selectedEnquiry.status === 'In Review' 
+                        ? 'text-[#00d2ff]' 
+                        : 'text-amber-400'
+                    }`}>
+                      {selectedEnquiry.status || 'Pending'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block text-[10px] uppercase">SUBMITTED ON</span>
+                    <span className="text-gray-300 block">
+                      {new Date(selectedEnquiry.created_at).toLocaleString('en-IN', {
+                        dateStyle: 'short',
+                        timeStyle: 'short'
+                      })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Subject Topic */}
+                <div className="bg-[#141414] p-4 rounded-xl border border-white/10 space-y-1">
+                  <span className="text-gray-500 font-mono text-[10px] uppercase block">
+                    Enquiry Subject Track
+                  </span>
+                  <div className="font-orbitron font-bold text-white text-sm text-[#FF3030]">
+                    {selectedEnquiry.subject}
+                  </div>
+                </div>
+
+                {/* Message Query Content */}
+                <div className="bg-[#141414] p-5 rounded-xl border border-white/10 space-y-2">
+                  <span className="font-orbitron font-bold text-white text-xs uppercase text-[#FF3030] block">
+                    Full Message / Query Content:
+                  </span>
+                  <div className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap font-sans p-3.5 bg-black/40 rounded-lg border border-white/5">
+                    {selectedEnquiry.message}
+                  </div>
+                </div>
+
+                {/* Status Update Actions */}
+                <div className="bg-[#140003] border border-[#E50914]/30 p-4 rounded-xl flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[10px] font-mono text-gray-400 uppercase block mb-1">
+                      Update Enquiry Status:
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {['Pending', 'In Review', 'Resolved'].map(s => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => handleUpdateEnquiryStatus(selectedEnquiry.id, s)}
+                          className={`px-3 py-1.5 rounded text-xs font-orbitron transition-all ${
+                            selectedEnquiry.status === s
+                              ? s === 'Resolved' 
+                                ? 'bg-green-600 text-white font-bold' 
+                                : s === 'In Review' 
+                                ? 'bg-blue-600 text-white font-bold' 
+                                : 'bg-[#E50914] text-white font-bold'
+                              : 'bg-black/50 text-gray-400 hover:text-white border border-white/10'
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <a
+                    href={`mailto:${selectedEnquiry.email}?subject=RE: NERONOVA 2026 Enquiry - ${selectedEnquiry.subject}`}
+                    className="px-4 py-2 bg-gradient-to-r from-[#E50914] to-[#FF3030] text-white rounded text-xs font-orbitron font-bold uppercase flex items-center space-x-1.5 shadow-neon-red hover:shadow-neon-red-lg transition-all"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Reply via Email</span>
+                  </a>
+                </div>
+
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-3 bg-[#140204] border-t border-[#E50914]/40 flex items-center justify-between">
+                <button
+                  onClick={() => setSelectedEnquiry(null)}
+                  className="px-4 py-1.5 border border-white/20 text-gray-300 hover:text-white rounded text-xs font-orbitron"
+                >
+                  Close Enquiry
+                </button>
+
+                {isMainAdmin && (
+                  <button
+                    onClick={() => handleDeleteEnquiry(selectedEnquiry.id, selectedEnquiry.name)}
+                    className="px-4 py-1.5 bg-red-900/60 hover:bg-red-800 text-white rounded text-xs font-orbitron font-bold flex items-center space-x-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Enquiry</span>
                   </button>
                 )}
               </div>

@@ -183,7 +183,8 @@ export default function Contact() {
                         required
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914]"
+                        placeholder="Enter your full name"
+                        className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914] placeholder:text-gray-500"
                       />
                     </div>
 
@@ -196,7 +197,8 @@ export default function Contact() {
                         required
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914]"
+                        placeholder="Enter your email address"
+                        className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914] placeholder:text-gray-500"
                       />
                     </div>
                   </div>
@@ -211,7 +213,8 @@ export default function Contact() {
                         required
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914]"
+                        placeholder="Enter your phone number"
+                        className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914] placeholder:text-gray-500"
                       />
                     </div>
 
@@ -244,7 +247,8 @@ export default function Contact() {
                       required
                       value={formData.message}
                       onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914]"
+                      placeholder="Enter your message or query here..."
+                      className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914] placeholder:text-gray-500"
                     ></textarea>
                   </div>
 

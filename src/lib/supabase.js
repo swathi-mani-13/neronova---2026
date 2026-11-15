@@ -331,6 +331,70 @@ export async function submitEnquiry(enquiryData) {
   }
 }
 
+// Fetch all official enquiries (Authenticated Admin Only)
+export async function fetchAllEnquiries() {
+  if (!isSupabaseConfigured) {
+    return { success: false, data: [], error: 'Supabase database is not configured.' };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('enquiries')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Failed to fetch enquiries from Supabase:', error);
+      return { success: false, data: [], error: error.message };
+    }
+
+    return { success: true, data: data || [] };
+  } catch (err) {
+    console.error('Supabase enquiries fetch exception:', err);
+    return { success: false, data: [], error: err.message || 'Error communicating with database.' };
+  }
+}
+
+// Update enquiry status (Authenticated Admin Only)
+export async function updateEnquiryStatus(enquiryId, newStatus) {
+  if (!isSupabaseConfigured) {
+    return { success: false, error: 'Database is not connected.' };
+  }
+
+  try {
+    const { error } = await supabase
+      .from('enquiries')
+      .update({ status: newStatus })
+      .eq('id', enquiryId);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    console.error('Supabase enquiry status update failed:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+// Delete enquiry (Main Admin Only)
+export async function deleteEnquiry(enquiryId) {
+  if (!isSupabaseConfigured) {
+    return { success: false, error: 'Database is not connected.' };
+  }
+
+  try {
+    const { error } = await supabase
+      .from('enquiries')
+      .delete()
+      .eq('id', enquiryId);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    console.error('Supabase delete enquiry failed:', err);
+    return { success: false, error: err.message };
+  }
+}
+
 // Fetch all registered teams with member data (Authenticated Admin Only)
 export async function fetchAllTeams() {
   if (!isSupabaseConfigured) {
