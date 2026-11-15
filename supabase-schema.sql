@@ -1,9 +1,9 @@
 -- ==============================================================================
 -- NERONOVA 2026 - Production Hardened Supabase PostgreSQL Schema & Security
 -- ==============================================================================
--- Version: 2.0 (Security Audited & RLS Hardened)
+-- Version: 2.1 (Zero-Trust Admin Security & Enumeration Hardened)
 -- Compatible with: NERONOVA 2026 Public Portal & Admin Dashboard
--- Safe to Re-run: Fully Idempotent (No Duplicate Policy or Trigger Errors)
+-- Safe to Re-run: Fully Idempotent (Pre-drops policies and functions safely)
 -- ==============================================================================
 
 -- 0. Enable Required Extensions
@@ -98,7 +98,7 @@ alter table public.enquiries enable row level security;
 alter table public.admin_profiles enable row level security;
 
 -- ==============================================================================
--- 7. SECURITY DEFINER HELPER FUNCTIONS (Fixed search_path to prevent hijacking)
+-- 7. SECURITY DEFINER FUNCTIONS (Strict search_path = public, pg_temp)
 -- ==============================================================================
 
 -- Check if authenticated session user is an authorized admin
@@ -131,7 +131,7 @@ as $$
 $$;
 
 -- Secure duplicate check function for public registration
--- Checks duplicates WITHOUT giving public users SELECT access to sensitive student records
+-- Hardened against enumeration: Returns generic participant conflict without revealing specific attribute or records
 create or replace function public.check_registration_duplicates(
     p_team_name text,
     p_email text,
@@ -145,52 +145,53 @@ stable
 as $$
 declare
     v_clean_phone text;
+    v_team_exists boolean := false;
+    v_participant_exists boolean := false;
 begin
-    -- 1. Check Team Name (case-insensitive, trimmed)
-    if exists (
-        select 1 
-        from public.teams 
-        where lower(trim(team_name)) = lower(trim(p_team_name))
-    ) then
-        return jsonb_build_object(
-            'duplicate', true,
-            'field', 'team_name',
-            'message', 'Team Name is already registered. Please choose a different team name.'
-        );
+    -- 1. Check Team Name (public competition identifier)
+    if p_team_name is not null and trim(p_team_name) <> '' then
+        select exists (
+            select 1 
+            from public.teams 
+            where lower(trim(team_name)) = lower(trim(p_team_name))
+        ) into v_team_exists;
+
+        if v_team_exists then
+            return jsonb_build_object(
+                'duplicate', true,
+                'field', 'team_name',
+                'message', 'Team Name is already taken. Please choose a different team name.'
+            );
+        end if;
     end if;
 
-    -- 2. Check Member Email (case-insensitive, trimmed)
-    if exists (
-        select 1 
-        from public.team_members 
-        where lower(trim(email)) = lower(trim(p_email))
-    ) then
-        return jsonb_build_object(
-            'duplicate', true,
-            'field', 'email',
-            'message', 'Email address is already registered with another team.'
-        );
-    end if;
+    -- 2. Check Participant Email & Phone
+    -- Combined check to prevent single-attribute identity enumeration
+    v_clean_phone := regexp_replace(coalesce(p_phone, ''), '[^0-9]', '', 'g');
 
-    -- 3. Check Member Phone (digits only)
-    v_clean_phone := regexp_replace(p_phone, '[^0-9]', '', 'g');
-    if exists (
-        select 1 
-        from public.team_members 
-        where phone = v_clean_phone
-    ) then
-        return jsonb_build_object(
-            'duplicate', true,
-            'field', 'phone',
-            'message', 'Phone number is already registered with another team.'
-        );
+    if (p_email is not null and trim(p_email) <> '') or (v_clean_phone <> '') then
+        select exists (
+            select 1 
+            from public.team_members 
+            where (p_email is not null and trim(p_email) <> '' and lower(trim(email)) = lower(trim(p_email)))
+               or (v_clean_phone <> '' and phone = v_clean_phone)
+        ) into v_participant_exists;
+
+        if v_participant_exists then
+            return jsonb_build_object(
+                'duplicate', true,
+                'field', 'participant',
+                'message', 'A participant with this email or phone number is already registered with an existing team.'
+            );
+        end if;
     end if;
 
     return jsonb_build_object('duplicate', false);
 end;
 $$;
 
--- Secure Bootstrap Function: Link an Auth user to Main Admin role in admin_profiles
+-- Secure Bootstrap Procedure: ONLY callable by SQL Editor (postgres superuser) or service_role
+-- NOT accessible to anonymous or regular authenticated web users
 create or replace function public.bootstrap_admin(
     admin_email text,
     admin_name text default 'Main Admin'
@@ -202,46 +203,67 @@ set search_path = public, auth, pg_temp
 as $$
 declare
     v_user_id uuid;
+    v_clean_email text;
 begin
+    v_clean_email := lower(trim(admin_email));
+
     -- Find user in auth.users by email
     select id into v_user_id
     from auth.users
-    where email = lower(trim(admin_email))
+    where lower(trim(email)) = v_clean_email
     limit 1;
 
     if v_user_id is null then
-        return 'Error: No user found in Supabase Auth with email ' || admin_email || '. Create the user in Auth -> Users first.';
+        return 'Error: No user found in Supabase Auth with email "' || admin_email || '". Create the user in Supabase Dashboard -> Authentication -> Users first.';
     end if;
 
     -- Insert or update into admin_profiles
     insert into public.admin_profiles (user_id, email, full_name, role)
-    values (v_user_id, lower(trim(admin_email)), admin_name, 'Main Admin')
+    values (v_user_id, v_clean_email, admin_name, 'Main Admin')
     on conflict (user_id) 
     do update set role = 'Main Admin', full_name = admin_name, updated_at = now();
 
-    return 'Success: ' || admin_email || ' assigned role "Main Admin" (UID: ' || v_user_id || ')';
+    return 'Success: User "' || admin_email || '" (UID: ' || v_user_id || ') is now registered as Main Admin.';
 end;
 $$;
 
 -- ==============================================================================
--- 8. RLS POLICIES FOR TEAMS (Idempotent: Drops existing policies before creating)
+-- 8. FUNCTION ACCESS RESTRICTIONS
+-- ==============================================================================
+-- Revoke bootstrap_admin from public, anon, and authenticated web users
+revoke all on function public.bootstrap_admin(text, text) from public, anon, authenticated;
+-- Grant bootstrap_admin strictly to database superuser (SQL Editor) and service_role
+grant execute on function public.bootstrap_admin(text, text) to postgres, service_role;
+
+-- Gated admin helper functions
+revoke all on function public.is_admin() from public, anon;
+grant execute on function public.is_admin() to authenticated, postgres, service_role;
+
+revoke all on function public.get_admin_role() from public, anon;
+grant execute on function public.get_admin_role() to authenticated, postgres, service_role;
+
+-- Public duplicate check RPC
+grant execute on function public.check_registration_duplicates(text, text, text) to anon, authenticated;
+
+-- ==============================================================================
+-- 9. RLS POLICIES FOR TEAMS (Idempotent)
 -- ==============================================================================
 drop policy if exists "Public users can register team" on public.teams;
 drop policy if exists "Public users can lookup teams" on public.teams;
-drop policy if exists "Admins can update teams" on public.teams;
-drop policy if exists "Main Admins can delete teams" on public.teams;
 drop policy if exists "Allow full access for authenticated admins on teams" on public.teams;
 drop policy if exists "Public can insert teams" on public.teams;
 drop policy if exists "Admins can select teams" on public.teams;
+drop policy if exists "Admins can update teams" on public.teams;
+drop policy if exists "Main Admins can delete teams" on public.teams;
 
--- 1. Public can insert new team during registration
+-- 1. Public can insert new team during registration (Cannot read back rows)
 create policy "Public can insert teams" 
     on public.teams 
     for insert 
     to anon, authenticated
     with check (true);
 
--- 2. ONLY authorized admins can read all teams (Prevents public harvesting)
+-- 2. ONLY authorized admins can read teams (Blocks anonymous data harvesting)
 create policy "Admins can select teams" 
     on public.teams 
     for select 
@@ -264,24 +286,24 @@ create policy "Main Admins can delete teams"
     using (public.get_admin_role() = 'Main Admin');
 
 -- ==============================================================================
--- 9. RLS POLICIES FOR TEAM MEMBERS (Idempotent)
+-- 10. RLS POLICIES FOR TEAM MEMBERS (Idempotent)
 -- ==============================================================================
 drop policy if exists "Public users can insert team members" on public.team_members;
 drop policy if exists "Public users can read team members" on public.team_members;
-drop policy if exists "Admins can update team members" on public.team_members;
-drop policy if exists "Main Admins can delete team members" on public.team_members;
 drop policy if exists "Allow full access for authenticated admins on team_members" on public.team_members;
 drop policy if exists "Public can insert team members" on public.team_members;
 drop policy if exists "Admins can select team members" on public.team_members;
+drop policy if exists "Admins can update team members" on public.team_members;
+drop policy if exists "Main Admins can delete team members" on public.team_members;
 
--- 1. Public can insert members during team registration
+-- 1. Public can insert members during team registration (Cannot read back rows)
 create policy "Public can insert team members" 
     on public.team_members 
     for insert 
     to anon, authenticated
     with check (true);
 
--- 2. ONLY authorized admins can select members (Protects personal email, phone & names)
+-- 2. ONLY authorized admins can select members (Protects personal emails, phones & names)
 create policy "Admins can select team members" 
     on public.team_members 
     for select 
@@ -304,14 +326,14 @@ create policy "Main Admins can delete team members"
     using (public.get_admin_role() = 'Main Admin');
 
 -- ==============================================================================
--- 10. RLS POLICIES FOR ENQUIRIES (Idempotent)
+-- 11. RLS POLICIES FOR ENQUIRIES (Idempotent)
 -- ==============================================================================
 drop policy if exists "Public users can submit enquiries" on public.enquiries;
 drop policy if exists "Admins can read enquiries" on public.enquiries;
 drop policy if exists "Admins can update enquiries" on public.enquiries;
 drop policy if exists "Main Admins can delete enquiries" on public.enquiries;
 
--- 1. Public users can insert contact queries
+-- 1. Public users can insert contact queries (Cannot read back enquiries)
 create policy "Public users can submit enquiries" 
     on public.enquiries 
     for insert 
@@ -341,7 +363,7 @@ create policy "Main Admins can delete enquiries"
     using (public.get_admin_role() = 'Main Admin');
 
 -- ==============================================================================
--- 11. RLS POLICIES FOR ADMIN PROFILES (Idempotent)
+-- 12. RLS POLICIES FOR ADMIN PROFILES (Idempotent - No Self-Registration Backdoors)
 -- ==============================================================================
 drop policy if exists "Admins can view admin profiles" on public.admin_profiles;
 drop policy if exists "Main Admins can manage admin profiles" on public.admin_profiles;
@@ -351,31 +373,21 @@ drop policy if exists "Main Admins can insert admin profiles" on public.admin_pr
 drop policy if exists "Main Admins can update admin profiles" on public.admin_profiles;
 drop policy if exists "Main Admins can delete admin profiles" on public.admin_profiles;
 
--- 1. Authenticated admins can view their own profile or all profiles if admin
+-- 1. Authenticated admins can view their own profile or all profiles if already an admin
 create policy "Admins can view their own profile" 
     on public.admin_profiles 
     for select 
     to authenticated 
     using (auth.uid() = user_id or public.is_admin());
 
--- 2. Bootstrap policy: If zero admin profiles exist, allow the first authenticated user to claim profile
-create policy "Allow bootstrap of first admin if table is empty" 
-    on public.admin_profiles 
-    for insert 
-    to authenticated 
-    with check (
-      not exists (select 1 from public.admin_profiles)
-      and auth.uid() = user_id
-    );
-
--- 3. Main Admin can add new admin profiles
+-- 2. Only existing Main Admins can insert new admin profiles (Zero public/self registration)
 create policy "Main Admins can insert admin profiles" 
     on public.admin_profiles 
     for insert 
     to authenticated 
     with check (public.get_admin_role() = 'Main Admin');
 
--- 4. Main Admin can update admin roles and profiles
+-- 3. Only existing Main Admins can update admin roles and profiles
 create policy "Main Admins can update admin profiles" 
     on public.admin_profiles 
     for update 
@@ -383,7 +395,7 @@ create policy "Main Admins can update admin profiles"
     using (public.get_admin_role() = 'Main Admin') 
     with check (public.get_admin_role() = 'Main Admin');
 
--- 5. Main Admin can delete admin profiles
+-- 4. Only existing Main Admins can delete admin profiles
 create policy "Main Admins can delete admin profiles" 
     on public.admin_profiles 
     for delete 
@@ -391,19 +403,22 @@ create policy "Main Admins can delete admin profiles"
     using (public.get_admin_role() = 'Main Admin');
 
 -- ==============================================================================
--- 12. PERMISSIONS GRANTS (Explicit anon/authenticated table permissions)
+-- 13. EXPLICIT TABLE PRIVILEGES
 -- ==============================================================================
+revoke all on table public.teams from public, anon, authenticated;
+revoke all on table public.team_members from public, anon, authenticated;
+revoke all on table public.enquiries from public, anon, authenticated;
+revoke all on table public.admin_profiles from public, anon, authenticated;
+
 grant usage on schema public to anon, authenticated;
+
+-- Public can only INSERT into registration & enquiry tables (Zero SELECT/UPDATE/DELETE)
 grant insert on table public.teams to anon, authenticated;
 grant insert on table public.team_members to anon, authenticated;
 grant insert on table public.enquiries to anon, authenticated;
 
+-- Authenticated admins have table privileges, governed by RLS
 grant select, update, delete on table public.teams to authenticated;
 grant select, update, delete on table public.team_members to authenticated;
 grant select, update, delete on table public.enquiries to authenticated;
 grant select, insert, update, delete on table public.admin_profiles to authenticated;
-
-grant execute on function public.check_registration_duplicates to anon, authenticated;
-grant execute on function public.is_admin to authenticated;
-grant execute on function public.get_admin_role to authenticated;
-grant execute on function public.bootstrap_admin to authenticated;

@@ -4,9 +4,7 @@ import { supabase, isSupabaseConfigured } from './supabase';
 const AuthContext = createContext(null);
 
 export const ADMIN_ROLES = {
-  MAIN_ADMIN: 'Main Admin',
-  ORGANIZING_TEAM: 'Organizing Team',
-  FACULTY_COORDINATOR: 'Faculty Coordinator'
+  MAIN_ADMIN: 'Main Admin'
 };
 
 export function AuthProvider({ children }) {
@@ -28,22 +26,22 @@ export function AuthProvider({ children }) {
         if (error) throw error;
 
         if (session && session.user && mounted) {
-          // Fetch authorized profile
+          // Fetch authorized Main Admin profile
           const { data: profile, error: profErr } = await supabase
             .from('admin_profiles')
             .select('role, full_name')
             .eq('user_id', session.user.id)
             .single();
 
-          if (!profErr && profile) {
+          if (!profErr && profile && profile.role === ADMIN_ROLES.MAIN_ADMIN) {
             setCurrentUser({
               id: session.user.id,
               email: session.user.email,
-              name: profile.full_name,
-              role: profile.role
+              name: profile.full_name || 'Main Admin',
+              role: ADMIN_ROLES.MAIN_ADMIN
             });
           } else {
-            // Not in admin_profiles table
+            // Not a verified Main Admin
             await supabase.auth.signOut();
             setCurrentUser(null);
           }
@@ -75,7 +73,7 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  // Secure Supabase Authentication & Role Verification
+  // Secure Supabase Authentication & Main Admin Verification
   const login = async (email, password) => {
     setLoading(true);
 
@@ -83,7 +81,7 @@ export function AuthProvider({ children }) {
       setLoading(false);
       return {
         success: false,
-        error: 'Database is not connected. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env, run supabase-schema.sql, and create your admin account.'
+        error: 'Database is not connected. Please verify your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
       };
     }
 
@@ -98,7 +96,7 @@ export function AuthProvider({ children }) {
         setLoading(false);
         return {
           success: false,
-          error: error.message || 'Authentication failed. Please verify your email and password.'
+          error: error.message || 'Authentication failed. Please verify your credentials.'
         };
       }
 
@@ -119,20 +117,29 @@ export function AuthProvider({ children }) {
 
       if (profileError || !profile) {
         console.warn('Authenticated user is not in admin_profiles:', profileError);
-        // Revoke unauthorized session
         await supabase.auth.signOut();
         setLoading(false);
         return {
           success: false,
-          error: 'Access Denied: This account is authenticated in Supabase but is not registered in the admin_profiles table.'
+          error: 'Access Denied: This account is authenticated but does not possess an assigned role in the admin_profiles table.'
+        };
+      }
+
+      // 3. Strictly enforce Main Admin role only
+      if (profile.role !== ADMIN_ROLES.MAIN_ADMIN) {
+        await supabase.auth.signOut();
+        setLoading(false);
+        return {
+          success: false,
+          error: 'Access Denied: Only Main Admin accounts are authorized to access the Admin Portal.'
         };
       }
 
       const userObj = {
         id: data.user.id,
         email: data.user.email,
-        name: profile.full_name,
-        role: profile.role
+        name: profile.full_name || 'Main Admin',
+        role: ADMIN_ROLES.MAIN_ADMIN
       };
 
       setCurrentUser(userObj);

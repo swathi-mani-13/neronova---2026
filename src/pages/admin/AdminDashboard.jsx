@@ -77,10 +77,8 @@ export default function AdminDashboard() {
 
   if (!currentUser) return null;
 
-  // Role permissions
-  const isMainAdmin = currentUser.role === ADMIN_ROLES.MAIN_ADMIN;
-  const isOrganizing = currentUser.role === ADMIN_ROLES.ORGANIZING_TEAM;
-  const isFaculty = currentUser.role === ADMIN_ROLES.FACULTY_COORDINATOR;
+  // Main Admin role permissions (Full privileges)
+  const isMainAdmin = true;
 
   // Filtered Teams List
   const filteredTeams = (stats?.teams || []).filter((team) => {
@@ -257,14 +255,8 @@ export default function AdminDashboard() {
             <span className="text-[10px] font-mono text-[#FF3030]">{currentUser.role}</span>
           </div>
 
-          <span className={`px-2.5 py-1 rounded-full text-[10px] font-orbitron font-bold uppercase border ${
-            isMainAdmin 
-              ? 'bg-[#E50914]/20 border-[#FF3030] text-[#FF3030]' 
-              : isFaculty 
-                ? 'bg-blue-500/20 border-blue-500 text-blue-400' 
-                : 'bg-green-500/20 border-green-500 text-green-400'
-          }`}>
-            {currentUser.role}
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-orbitron font-bold uppercase border bg-[#E50914]/20 border-[#FF3030] text-[#FF3030]">
+            {currentUser.role || 'Main Admin'}
           </span>
 
           <button

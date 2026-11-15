@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Shield, Lock, Mail, Key, ChevronRight, AlertCircle, ArrowLeft } from 'lucide-react';
-import { useAuth, ADMIN_ROLES } from '../../lib/auth';
+import { Shield, Lock, Mail, Key, AlertCircle, ArrowLeft } from 'lucide-react';
+import { useAuth } from '../../lib/auth';
 
 export default function AdminLogin() {
   const { login, currentUser } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('neronova2026@gmail.com');
   const [password, setPassword] = useState('');
-  const [selectedRole, setSelectedRole] = useState(ADMIN_ROLES.MAIN_ADMIN);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -32,13 +31,6 @@ export default function AdminLogin() {
       navigate('/admin');
     } else {
       setError(res.error || 'Authentication rejected. Verify credentials.');
-    }
-  };
-
-  const handleRoleSelect = (role, demoEmail) => {
-    setSelectedRole(role);
-    if (!email) {
-      setEmail(demoEmail);
     }
   };
 
@@ -69,57 +61,24 @@ export default function AdminLogin() {
             ADMIN PORTAL
           </h2>
           <p className="text-xs font-mono text-gray-400 mt-1">
-            NERONOVA 2026 // SECURE ACCESS GATEWAY
+            NERONOVA 2026 // MAIN ADMIN ACCESS
           </p>
         </div>
 
         {/* Login Box */}
         <div className="bg-[#0e0e0e] border border-[#E50914]/50 rounded-2xl p-6 sm:p-8 shadow-neon-red relative">
           
-          {/* Quick Role Selection Badges for Reviewers */}
-          <div className="mb-6 pb-5 border-b border-white/10">
-            <label className="block text-[11px] font-orbitron font-semibold text-gray-400 uppercase mb-2">
-              Select Admin Role Profile:
-            </label>
-            <div className="grid grid-cols-1 gap-2">
-              {[
-                { role: ADMIN_ROLES.MAIN_ADMIN, email: 'admin@neronova.com', desc: 'Full System Control & Record Purging' },
-                { role: ADMIN_ROLES.ORGANIZING_TEAM, email: 'organizer@neronova.com', desc: 'Check-in, Payment Verification & Reporting' },
-                { role: ADMIN_ROLES.FACULTY_COORDINATOR, email: 'faculty@neronova.com', desc: 'Academic Review & Proposal Auditing' }
-              ].map((r) => (
-                <button
-                  key={r.role}
-                  type="button"
-                  onClick={() => handleRoleSelect(r.role, r.email)}
-                  className={`text-left p-2.5 rounded-lg border text-xs transition-all ${
-                    selectedRole === r.role
-                      ? 'bg-[#E50914]/20 border-[#FF3030] text-white shadow-[0_0_10px_rgba(229,9,20,0.3)]'
-                      : 'bg-[#141414] border-white/5 text-gray-400 hover:border-white/20'
-                  }`}
-                >
-                  <div className="font-orbitron font-bold flex items-center justify-between">
-                    <span>{r.role}</span>
-                    {selectedRole === r.role && (
-                      <span className="w-2 h-2 rounded-full bg-[#FF3030] animate-ping"></span>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-gray-500 font-mono mt-0.5">{r.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
           {error && (
-            <div className="mb-4 bg-[#2a0004] border border-[#FF3030] text-red-200 p-3 rounded-lg text-xs flex items-center space-x-2">
+            <div className="mb-5 bg-[#2a0004] border border-[#FF3030] text-red-200 p-3.5 rounded-lg text-xs flex items-center space-x-2 animate-fadeIn">
               <AlertCircle className="w-4 h-4 text-[#FF3030] shrink-0" />
-              <span>{error}</span>
+              <span className="font-mono">{error}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-orbitron font-semibold text-gray-300 uppercase mb-1">
-                Admin Email ID
+                Main Admin Email
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-gray-500 absolute left-3 top-3" />
@@ -128,7 +87,8 @@ export default function AdminLogin() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg pl-10 pr-3 py-2.5 text-sm text-white focus:outline-none"
+                  placeholder="neronova2026@gmail.com"
+                  className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg pl-10 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914]"
                 />
               </div>
             </div>
@@ -144,21 +104,19 @@ export default function AdminLogin() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg pl-10 pr-3 py-2.5 text-sm text-white focus:outline-none"
+                  placeholder="••••••••••••"
+                  className="w-full bg-[#141414] border border-white/10 focus:border-[#E50914] rounded-lg pl-10 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#E50914]"
                 />
-              </div>
-              <div className="text-[10px] text-gray-500 font-mono mt-1">
-                Default evaluator password: <span className="text-[#FF3030]">admin</span>
               </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 py-3 bg-gradient-to-r from-[#E50914] to-[#FF3030] text-white font-orbitron font-bold text-xs uppercase rounded cyber-chamfer-btn shadow-neon-red hover:shadow-neon-red-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
+              className="w-full mt-4 py-3.5 bg-gradient-to-r from-[#E50914] to-[#FF3030] text-white font-orbitron font-bold text-xs uppercase rounded cyber-chamfer-btn shadow-neon-red hover:shadow-neon-red-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
             >
               <Key className="w-4 h-4" />
-              <span>{loading ? 'Authenticating...' : `Login as ${selectedRole}`}</span>
+              <span>{loading ? 'Authenticating...' : 'Login as Main Admin'}</span>
             </button>
           </form>
 
